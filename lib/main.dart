@@ -1,5 +1,6 @@
 import 'dart:convert';
 import 'dart:io';
+import 'dart:math' as math;
 
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
@@ -25,17 +26,21 @@ class VideoFrameExtractorApp extends StatelessWidget {
 }
 
 class CaptureRule {
+  CaptureRule({required this.start, required this.interval, required this.rect});
+
   final Duration start;
   final Duration interval;
   final Rect rect;
-
-  CaptureRule({required this.start, required this.interval, required this.rect});
 
   Map<String, dynamic> toJson() => {
     "start_ms": start.inMilliseconds,
     "interval_ms": interval.inMilliseconds,
     "rect": {"x": rect.left.toInt(), "y": rect.top.toInt(), "w": rect.width.toInt(), "h": rect.height.toInt()},
   };
+
+  CaptureRule copyWith({Duration? start, Duration? interval, Rect? rect}) {
+    return CaptureRule(start: start ?? this.start, interval: interval ?? this.interval, rect: rect ?? this.rect);
+  }
 }
 
 class HomePage extends StatefulWidget {
@@ -58,6 +63,11 @@ class _HomePageState extends State<HomePage> {
   String? videoPath;
   final List<CaptureRule> rules = [];
 
+  // 以「影片像素」為座標系來存
+  Rect? rectVideoPx;
+  Offset? dragStartVideoPx;
+  Size? videoSizePx; // 例如 1920x1080
+
   @override
   void dispose() {
     _scrollController.dispose();
@@ -77,39 +87,105 @@ class _HomePageState extends State<HomePage> {
       return;
     }
 
+    _controller?.dispose();
+
     final filePath = result.files.single.path!;
-    _controller = VideoPlayerController.file(File(filePath))
-      ..initialize().then((_) async {
-        await _controller?.setVolume(0);
-        setState(() {});
-        _controller?.play();
-      });
+    final c = VideoPlayerController.file(File(filePath));
+    _controller = c;
+    await c.initialize();
+
+    await c.setVolume(0);
+
+    // 這裡的 size 是以「畫面邏輯像素比例」呈現的寬高比，實際像素用比例換算即可
+    // 多數情況可直接把 value.size 當作影片的像素比例，等比縮放即可。
+    final vs = c.value.size; // e.g., Size(1920, 1080) 或 300x300
+
+    setState(() {});
+    videoSizePx = Size(vs.width.roundToDouble(), vs.height.roundToDouble());
+    rectVideoPx = null; // 重選
+    dragStartVideoPx = null;
+
+    c.play();
 
     setState(() {
       videoPath = filePath;
     });
   }
 
-  void _onPanStart(DragStartDetails details) {
+  // 把螢幕上的 localPosition（Stack child 的座標，單位邏輯 px）映射到「影片像素座標」
+  Offset? _screenToVideo(Offset p, Size paintSize) {
+    if (videoSizePx == null) return null;
+
+    // 以 BoxFit.contain 計算影片顯示矩形（在 paintSize 內）
+    final vw = videoSizePx!.width;
+    final vh = videoSizePx!.height;
+    final scale = math.min(paintSize.width / vw, paintSize.height / vh);
+    final displayW = vw * scale;
+    final displayH = vh * scale;
+    final dx = (paintSize.width - displayW) / 2.0;
+    final dy = (paintSize.height - displayH) / 2.0;
+    final displayRect = Rect.fromLTWH(dx, dy, displayW, displayH);
+
+    // 若座標在影片外的 letterbox 區域，忽略
+    if (!displayRect.contains(p)) return null;
+
+    // 反投影：先扣掉 offset，再除以 scale
+    final vx = (p.dx - displayRect.left) / scale;
+    final vy = (p.dy - displayRect.top) / scale;
+
+    // 夾在影片邊界內（避免負數/超界）
+    final clampedX = vx.clamp(0.0, vw);
+    final clampedY = vy.clamp(0.0, vh);
+    return Offset(clampedX, clampedY);
+  }
+
+  // 把「影片像素座標」轉回螢幕（為了畫框用）
+  Rect _videoRectToScreen(Rect rVideo, Size paintSize) {
+    final vw = videoSizePx!.width;
+    final vh = videoSizePx!.height;
+    final scale = math.min(paintSize.width / vw, paintSize.height / vh);
+    final displayW = vw * scale;
+    final displayH = vh * scale;
+    final dx = (paintSize.width - displayW) / 2.0;
+    final dy = (paintSize.height - displayH) / 2.0;
+
+    return Rect.fromLTWH(
+      dx + rVideo.left * scale,
+      dy + rVideo.top * scale,
+      rVideo.width * scale,
+      rVideo.height * scale,
+    );
+  }
+
+  void _onPanStart(DragStartDetails d, Size paintSize) {
+    final v = _screenToVideo(d.localPosition, paintSize);
+    if (v == null) return;
     setState(() {
-      dragStart = details.localPosition;
-      dragEnd = null;
+      dragStartVideoPx = v;
+      rectVideoPx = null;
     });
   }
 
-  void _onPanUpdate(DragUpdateDetails details) {
+  void _onPanUpdate(DragUpdateDetails d, Size paintSize) {
+    if (dragStartVideoPx == null) return;
+    final v = _screenToVideo(d.localPosition, paintSize);
+    if (v == null) return;
     setState(() {
-      dragEnd = details.localPosition;
+      rectVideoPx = Rect.fromPoints(dragStartVideoPx!, v);
+      print('=============> ${rectVideoPx!.left} ${rectVideoPx!.top} ${rectVideoPx!.width} ${rectVideoPx!.height}');
     });
   }
 
-  void _onPanEnd(DragEndDetails details) {
-    if (dragStart != null && dragEnd != null) {
-      final rect = Rect.fromPoints(dragStart!, dragEnd!);
-      setState(() {
-        selectedRect = rect;
-      });
-      debugPrint("選取範圍: $rect");
+  void _onPanEnd() {
+    setState(() {
+      dragStartVideoPx = null; // 結束拖曳，保留 rectVideoPx
+    });
+    if (rectVideoPx != null) {
+      final r = rectVideoPx!;
+      debugPrint(
+        "選取(影片像素): x=${r.left.toStringAsFixed(1)}, y=${r.top.toStringAsFixed(1)}, "
+        "w=${r.width.toStringAsFixed(1)}, h=${r.height.toStringAsFixed(1)}",
+      );
     }
   }
 
@@ -121,6 +197,7 @@ class _HomePageState extends State<HomePage> {
     required Rect rect,
   }) async {
     if (videoPath == null || rules.isEmpty) return;
+    final newRules = rules.map((e) => e.copyWith(rect: rect)).toList();
 
     // crop=w:h:x:y
     final crop = "crop=${rect.width.toInt()}:${rect.height.toInt()}:${rect.left.toInt()}:${rect.top.toInt()}";
@@ -142,7 +219,7 @@ class _HomePageState extends State<HomePage> {
 
     int segmentIndex = 0;
 
-    for (var rule in rules) {
+    for (var rule in newRules) {
       final segDir = Directory(p.join(projectDir.path, "seg_$segmentIndex"));
       if (!segDir.existsSync()) segDir.createSync();
 
@@ -184,6 +261,31 @@ class _HomePageState extends State<HomePage> {
     }
   }
 
+  Future<List<String>> buildFfmpegArgs({
+    required String inputPath,
+    required String outputPattern, // e.g. /path/seg_0/frame_%04d.png
+    required Duration start,
+    required Duration interval,
+    required Rect rectVideoPx,
+  }) async {
+    // 影片像素 → 整數
+    final x = rectVideoPx.left.round();
+    final y = rectVideoPx.top.round();
+    final w = rectVideoPx.width.round();
+    final h = rectVideoPx.height.round();
+
+    final fps = 1 / (interval.inMilliseconds / 1000.0); // 例: 1/0.2 = 5
+    return [
+      '-ss',
+      start.inMilliseconds >= 0 ? (start.inMilliseconds / 1000).toStringAsFixed(3) : '0',
+      '-i',
+      inputPath,
+      '-vf',
+      'crop=$w:$h:$x:$y,fps=$fps',
+      outputPattern,
+    ];
+  }
+
   void addSampleRule() {
     // 測試用的規則
     rules.add(
@@ -198,6 +300,7 @@ class _HomePageState extends State<HomePage> {
 
   @override
   Widget build(BuildContext context) {
+    final videoController = _controller;
     return Scaffold(
       appBar: AppBar(title: const Text("Video Frame Extractor")),
       body: Column(
@@ -216,7 +319,7 @@ class _HomePageState extends State<HomePage> {
                   const SizedBox(height: 20),
                   ElevatedButton(
                     onPressed: () async {
-                      if (videoPath == null) return;
+                      if (videoPath == null || rectVideoPx == null) return;
 
                       final outputDir = await getApplicationDocumentsDirectory();
 
@@ -225,59 +328,86 @@ class _HomePageState extends State<HomePage> {
                         outputDir: outputDir.path,
                         start: Duration.zero,
                         interval: const Duration(seconds: 1),
-                        rect: Rect.fromLTWH(0, 0, 2160, 1440),
+                        rect: rectVideoPx!, //Rect.fromLTWH(0, 0, 2160, 1440),
                       );
                     },
                     child: const Text("開始擷取"),
                   ),
-                  _controller == null
+                  videoController == null
                       ? const Text("請先選擇影片")
                       : Container(
                           color: Colors.black,
                           width: double.infinity,
                           child: AspectRatio(
-                            aspectRatio: _controller!.value.aspectRatio,
+                            aspectRatio: videoController.value.aspectRatio,
                             child: Stack(
                               children: [
-                                VideoPlayer(_controller!),
-                                GestureDetector(
-                                  onPanStart: _onPanStart,
-                                  onPanUpdate: _onPanUpdate,
-                                  onPanEnd: _onPanEnd,
-                                  child: CustomPaint(
-                                    painter: RectPainter(dragStart, dragEnd, selectedRect),
-                                    child: Container(),
+                                VideoPlayer(videoController),
+                                // 透明互動層
+                                Positioned.fill(
+                                  child: LayoutBuilder(
+                                    builder: (context, box) {
+                                      final paintSize = Size(box.maxWidth, box.maxHeight); // 當前顯示大小
+                                      return GestureDetector(
+                                        behavior: HitTestBehavior.opaque,
+                                        onPanStart: (d) => _onPanStart(d, paintSize),
+                                        onPanUpdate: (d) => _onPanUpdate(d, paintSize),
+                                        onPanEnd: (_) => _onPanEnd(),
+                                        child: CustomPaint(
+                                          painter: _RectOnVideoPainter(
+                                            rectVideoPx: rectVideoPx,
+                                            toScreen: (rv) => _videoRectToScreen(rv, paintSize),
+                                          ),
+                                        ),
+                                      );
+                                    },
                                   ),
                                 ),
                               ],
                             ),
                           ),
                         ),
-                  if (_controller != null) ...[
+                  if (videoController != null) ...[
+                    Row(
+
+                    ),
                     Row(
                       children: [
+                        Text('Volume'),
                         // slider
                         Expanded(
                           child: Slider(
-                            value: _controller!.value.volume,
+                            value: videoController.value.volume,
                             onChanged: (value) {
-                              _controller!.setVolume(value);
+                              videoController.setVolume(value);
                               setState(() {});
                             },
                           ),
                         ),
                         IconButton(
                           onPressed: () {
-                            _controller!.setVolume(_controller!.value.volume > 0 ? 0 : 1);
+                            videoController.setVolume(videoController.value.volume > 0 ? 0 : 1);
                             setState(() {});
                           },
                           icon: Icon(
-                            _controller!.value.volume == 0 ? Icons.volume_off_outlined : Icons.volume_up_outlined,
+                            videoController.value.volume == 0 ? Icons.volume_off_outlined : Icons.volume_up_outlined,
                           ),
                         ),
                       ],
                     ),
                   ],
+                  Text('個人常用設定'),
+                  Wrap(
+                    children: [
+                      ElevatedButton(onPressed: () {
+                        setState(() {
+                          rectVideoPx = Rect.fromLTWH(0, 155, 1920, 260);
+                          // dragStartVideoPx;
+                        });
+                      }, child: Text('設定擷取範圍'),
+                      ),
+                    ],
+                  ),
                 ],
               ),
             ),
@@ -337,5 +467,42 @@ class RectPainter extends CustomPainter {
   @override
   bool shouldRepaint(covariant RectPainter oldDelegate) {
     return oldDelegate.start != start || oldDelegate.end != end || oldDelegate.selectedRect != selectedRect;
+  }
+}
+
+class _RectOnVideoPainter extends CustomPainter {
+  final Rect? rectVideoPx;
+  final Rect Function(Rect) toScreen;
+
+  _RectOnVideoPainter({required this.rectVideoPx, required this.toScreen});
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    if (rectVideoPx == null) return;
+    final r = toScreen(_normalize(rectVideoPx!)); // 先正規化，確保 left<right, top<bottom
+
+    final fill = Paint()
+      ..color = Colors.red.withOpacity(0.2)
+      ..style = PaintingStyle.fill;
+    final stroke = Paint()
+      ..color = Colors.red
+      ..strokeWidth = 2
+      ..style = PaintingStyle.stroke;
+
+    canvas.drawRect(r, fill);
+    canvas.drawRect(r, stroke);
+  }
+
+  Rect _normalize(Rect r) {
+    final left = math.min(r.left, r.right);
+    final right = math.max(r.left, r.right);
+    final top = math.min(r.top, r.bottom);
+    final bottom = math.max(r.top, r.bottom);
+    return Rect.fromLTRB(left, top, right, bottom);
+  }
+
+  @override
+  bool shouldRepaint(covariant _RectOnVideoPainter oldDelegate) {
+    return oldDelegate.rectVideoPx != rectVideoPx;
   }
 }
