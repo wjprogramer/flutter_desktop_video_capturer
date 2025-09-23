@@ -31,6 +31,30 @@ dependencies:
   flutter:
     sdk: flutter
 
+  # Windows
+  # BSD-3-Clause
+  # 另有 video_player 支援其他平台
+  video_player_win: ^3.2.0
+
+  # Android iOS macOS
+  # LGPL-3.0
+  ffmpeg_kit_flutter_new: ^3.2.0
+
+  # Android iOS Linux macOS
+  # BSD-3-Clause
+  # 另有 video_player_win 支援 Windows
+  video_player: ^2.10.0
+
+  # Android iOS Linux macOS Windows
+  # BSD-3-Clause
+  path_provider: ^2.1.5
+
+  # Android iOS Linux macOS web Windows
+  # MIT
+  file_picker: ^10.3.3
+  # BSD-3-Clause
+  path: ^1.9.1
+
   # The following adds the Cupertino Icons font to your application.
   # Use with the CupertinoIcons class for iOS style icons.
   cupertino_icons: ^1.0.8
