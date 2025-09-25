@@ -26,20 +26,27 @@ class VideoFrameExtractorApp extends StatelessWidget {
 }
 
 class CaptureRule {
-  CaptureRule({required this.start, required this.interval, required this.rect});
+  CaptureRule({required this.start, this.end, required this.interval, required this.rect});
 
   final Duration start;
+  final Duration? end;
   final Duration interval;
   final Rect rect;
 
   Map<String, dynamic> toJson() => {
     "start_ms": start.inMilliseconds,
+    "end_ms": end?.inMilliseconds,
     "interval_ms": interval.inMilliseconds,
     "rect": {"x": rect.left.toInt(), "y": rect.top.toInt(), "w": rect.width.toInt(), "h": rect.height.toInt()},
   };
 
-  CaptureRule copyWith({Duration? start, Duration? interval, Rect? rect}) {
-    return CaptureRule(start: start ?? this.start, interval: interval ?? this.interval, rect: rect ?? this.rect);
+  CaptureRule copyWith({Duration? start, ValueObject<Duration>? end, Duration? interval, Rect? rect}) {
+    return CaptureRule(
+      start: start ?? this.start,
+      end: end != null ? end.value : this.end,
+      interval: interval ?? this.interval,
+      rect: rect ?? this.rect,
+    );
   }
 }
 
@@ -53,7 +60,6 @@ class HomePage extends StatefulWidget {
 class _HomePageState extends State<HomePage> {
   final _scrollController = ScrollController();
   final List<String> _logs = [];
-  bool _isRunning = false;
 
   VideoPlayerController? _controller;
   Rect? selectedRect;
@@ -67,6 +73,8 @@ class _HomePageState extends State<HomePage> {
   Rect? rectVideoPx;
   Offset? dragStartVideoPx;
   Size? videoSizePx; // 例如 1920x1080
+
+  var _isPlayingBeforeChangeDuration = false;
 
   @override
   void dispose() {
@@ -298,6 +306,18 @@ class _HomePageState extends State<HomePage> {
     setState(() {});
   }
 
+  String _durationText(Duration d) {
+    final s = d.inSeconds;
+    final m = (s / 60).floor();
+    final ms = d.inMilliseconds.remainder(1000);
+
+    final mText = m.toString().padLeft(2, '0');
+    final sText = s.remainder(60).toString().padLeft(2, '0');
+    final msText = ms.toString().padLeft(3, '0');
+
+    return '$mText:$sText.$msText';
+  }
+
   @override
   Widget build(BuildContext context) {
     final videoController = _controller;
@@ -370,9 +390,68 @@ class _HomePageState extends State<HomePage> {
                           ),
                         ),
                   if (videoController != null) ...[
-                    Row(
-
+                    ValueListenableBuilder(
+                      valueListenable: videoController,
+                      builder: (context, value, child) {
+                        return Column(
+                          crossAxisAlignment: CrossAxisAlignment.stretch,
+                          children: [
+                            Row(
+                              children: [
+                                IconButton(
+                                  onPressed: () {
+                                    if (videoController.value.isPlaying) {
+                                      videoController.pause();
+                                    } else {
+                                      videoController.play();
+                                    }
+                                  },
+                                  icon: Icon(videoController.value.isPlaying ? Icons.pause : Icons.play_arrow),
+                                ),
+                                Text(
+                                  '${_durationText(videoController.value.position)} / ${_durationText(videoController.value.duration)}',
+                                ),
+                              ],
+                            ),
+                            Slider(
+                              value: videoController.value.position.inMilliseconds.toDouble().clamp(
+                                0.0,
+                                videoController.value.duration.inMilliseconds.toDouble(),
+                              ),
+                              min: 0,
+                              max: videoController.value.duration.inMilliseconds.toDouble(),
+                              onChangeStart: (_) async {
+                                _isPlayingBeforeChangeDuration = videoController.value.isPlaying;
+                                await videoController.pause();
+                                setState(() {});
+                              },
+                              onChanged: (v) {
+                                setState(() {
+                                  videoController.seekTo(Duration(milliseconds: v.toInt()));
+                                });
+                              },
+                              onChangeEnd: (_) async {
+                                if (_isPlayingBeforeChangeDuration) {
+                                  await videoController.play();
+                                }
+                                setState(() {});
+                              },
+                            ),
+                            Padding(
+                              padding: const EdgeInsets.symmetric(horizontal: 24),
+                              child: Container(
+                                // 要對準 Slider
+                                color: Colors.grey.shade300,
+                                width: double.infinity,
+                                height: 20,
+                                child: Row(children: []),
+                              ),
+                            ),
+                          ],
+                        );
+                      },
                     ),
+                    Row(),
                     Row(
                       children: [
                         Text('Volume'),
@@ -399,17 +478,38 @@ class _HomePageState extends State<HomePage> {
                     ),
                   ],
                   Text('個人常用設定'),
-                  Wrap(
-                    children: [
-                      ElevatedButton(onPressed: () {
-                        setState(() {
-                          rectVideoPx = Rect.fromLTWH(0, 155, 1920, 260);
-                          // dragStartVideoPx;
-                        });
-                      }, child: Text('設定擷取範圍'),
-                      ),
-                    ],
-                  ),
+                  if (videoController != null)
+                    Wrap(
+                      spacing: 8,
+                      runSpacing: 8,
+                      children: [
+                        ElevatedButton(
+                          onPressed: () {
+                            setState(() {
+                              rectVideoPx = Rect.fromLTWH(0, 155, 1920, 260);
+                              // dragStartVideoPx;
+                            });
+                          },
+                          child: Text('設定擷取範圍'),
+                        ),
+                        // 微調時間
+                        ...[-1, 1]
+                            .map(
+                              (sign) => [1000, 500, 300, 100, 50, 10, 1].map(
+                                (ms) => ElevatedButton(
+                                  onPressed: () {
+                                    var start = videoController.value.position;
+                                    start += Duration(milliseconds: sign * ms);
+                                    videoController.seekTo(start);
+                                    setState(() {});
+                                  },
+                                  child: Text('${sign < 0 ? '-' : '+'}$ms ms'),
+                                ),
+                              ),
+                            )
+                            .expand((e) => e),
+                      ],
+                    ),
                 ],
               ),
             ),
@@ -507,4 +607,10 @@ class _RectOnVideoPainter extends CustomPainter {
   bool shouldRepaint(covariant _RectOnVideoPainter oldDelegate) {
     return oldDelegate.rectVideoPx != rectVideoPx;
   }
+}
+
+class ValueObject<T> {
+  ValueObject(this.value);
+
+  final T? value;
 }
