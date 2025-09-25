@@ -101,7 +101,6 @@ class _HomePageState extends State<HomePage> {
 
     setState(() {});
     videoSizePx = Size(vs.width.roundToDouble(), vs.height.roundToDouble());
-    rectVideoPx = null; // 重選
     dragStartVideoPx = null;
 
     c.play();
@@ -229,7 +228,8 @@ class _HomePageState extends State<HomePage> {
 
   // 由 rules + stopPoints 推導每段擷取區間
   List<_Segment> _buildSegments(Duration videoDuration) {
-    final sortedRules = [...rules]..sort((a, b) => a.start.compareTo(b.start));
+    final sortedRules = [...rules].map((e) => e.copyWith(rect: rectVideoPx)).toList()
+      ..sort((a, b) => a.start.compareTo(b.start));
     final stops = [...stopPoints]..sort((a, b) => a.compareTo(b));
 
     final segs = <_Segment>[];
@@ -473,15 +473,15 @@ class _HomePageState extends State<HomePage> {
   }
 
   void addSampleRule() {
-    // 測試用的規則
-    rules.add(
-      CaptureRule(
-        start: const Duration(seconds: 10),
-        interval: const Duration(milliseconds: 1200),
-        rect: const Rect.fromLTWH(100, 200, 400, 100),
-      ),
-    );
-    setState(() {});
+    // // 測試用的規則
+    // rules.add(
+    //   CaptureRule(
+    //     start: const Duration(seconds: 10),
+    //     interval: const Duration(milliseconds: 1200),
+    //     rect: const Rect.fromLTWH(100, 200, 400, 100),
+    //   ),
+    // );
+    // setState(() {});
   }
 
   String _durationText(Duration d) {
@@ -576,8 +576,8 @@ class _HomePageState extends State<HomePage> {
                   ElevatedButton(onPressed: pickVideo, child: const Text("選擇影片")),
                   if (videoPath != null) Text("影片: $videoPath"),
                   const SizedBox(height: 20),
-                  ElevatedButton(onPressed: addSampleRule, child: const Text("加入範例擷取規則")),
-                  Text("目前規則數量: ${rules.length}"),
+                  // ElevatedButton(onPressed: addSampleRule, child: const Text("加入範例擷取規則")),
+                  // Text("目前規則數量: ${rules.length}"),
                   const SizedBox(height: 20),
                   ElevatedButton(
                     onPressed: () async {
@@ -593,7 +593,10 @@ class _HomePageState extends State<HomePage> {
 
                       final videoName = p.basenameWithoutExtension(videoPath!);
                       final appDocDir = await getApplicationDocumentsDirectory();
-                      final outputPath = p.join(appDocDir.path, 'export_$videoName');
+                      final now = DateTime.now();
+                      final middle =
+                          "${now.year}${now.month.toString().padLeft(2, '0')}${now.day.toString().padLeft(2, '0')}_${now.hour.toString().padLeft(2, '0')}${now.minute.toString().padLeft(2, '0')}${now.second.toString().padLeft(2, '0')}";
+                      final outputPath = p.join(appDocDir.path, 'export_${middle}_$videoName');
 
                       runCapture(
                         inputPath: videoPath!,
