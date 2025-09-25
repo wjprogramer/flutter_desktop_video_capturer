@@ -11,24 +11,21 @@ import 'package:video_player/video_player.dart';
 import 'other.dart';
 
 class CaptureRule {
-  CaptureRule({required this.start, this.end, required this.interval, required this.rect});
+  CaptureRule({required this.start, required this.interval, required this.rect});
 
   final Duration start;
-  final Duration? end;
   final Duration interval;
   final Rect rect;
 
   Map<String, dynamic> toJson() => {
     "start_ms": start.inMilliseconds,
-    "end_ms": end?.inMilliseconds,
     "interval_ms": interval.inMilliseconds,
     "rect": {"x": rect.left.toInt(), "y": rect.top.toInt(), "w": rect.width.toInt(), "h": rect.height.toInt()},
   };
 
-  CaptureRule copyWith({Duration? start, ValueObject<Duration>? end, Duration? interval, Rect? rect}) {
+  CaptureRule copyWith({Duration? start, Duration? interval, Rect? rect}) {
     return CaptureRule(
       start: start ?? this.start,
-      end: end != null ? end.value : this.end,
       interval: interval ?? this.interval,
       rect: rect ?? this.rect,
     );
