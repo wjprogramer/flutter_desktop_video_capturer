@@ -2,7 +2,6 @@ import 'dart:convert';
 import 'dart:io';
 import 'dart:math' as math;
 
-import 'package:bot_toast/bot_toast.dart';
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_desktop_video_capturer/toast.dart';
@@ -323,6 +322,32 @@ class _HomePageState extends State<HomePage> {
       final y = r.rect.top.round();
       final w = r.rect.width.round();
       final h = r.rect.height.round();
+
+      Future<void> forceCaptureSegStart() async {
+        // 先強制擷取「段落起點」的一張
+        final startStillPath = p.join(segDir.path, 'frame_start.png');
+        final argsStart = [
+          '-hide_banner',
+          '-loglevel', 'info',
+          '-ss', (r.start.inMilliseconds / 1000).toStringAsFixed(3),
+          '-i', inputPath,
+          '-vf', 'crop=$w:$h:$x:$y',
+          '-frames:v', '1',
+          startStillPath,
+        ];
+        _addLog('執行(起點單張): ffmpeg ${argsStart.join(' ')}');
+        try {
+          final pStart = await Process.start('ffmpeg', argsStart);
+          pStart.stdout.transform(SystemEncoding().decoder).listen((d) => _addLog('stdout: $d'));
+          pStart.stderr.transform(SystemEncoding().decoder).listen((d) => _addLog('stderr: $d'));
+          final codeStart = await pStart.exitCode;
+          _addLog('起點單張完成 seg_$i，exit=$codeStart');
+        } catch (e) {
+          _addLog('起點單張失敗 seg_$i: $e');
+        }
+      }
+      await forceCaptureSegStart();
+
       final fps = 1 / (r.interval.inMilliseconds / 1000.0);
       final durationSec = ((r.end ?? _controller!.value.duration) - r.start).inMilliseconds / 1000.0;
 
@@ -465,6 +490,43 @@ class _HomePageState extends State<HomePage> {
     return '$mText:$sText.$msText';
   }
 
+  // 從 segments 算出所有「預計擷取時間點」(已含每個 rule 的 start)
+  List<Duration> _plannedCaptureTimesFromSegments(List<_Segment> segs) {
+    final out = <Duration>[];
+    for (final seg in segs) {
+      final r = seg.rule;
+      final startMs = r.start.inMilliseconds;
+      final endMs = (r.end ?? r.start).inMilliseconds;
+      final step = r.interval.inMilliseconds;
+      if (step <= 0) continue;
+      for (int t = startMs; t <= endMs; t += step) {
+        out.add(Duration(milliseconds: t));
+      }
+    }
+    out.sort((a, b) => a.compareTo(b));
+    // 去重（避免鄰接段落首尾重疊）
+    final dedup = <Duration>[];
+    for (final d in out) {
+      if (dedup.isEmpty || dedup.last != d) dedup.add(d);
+    }
+    return dedup;
+  }
+
+  // 找到「<= 當前位置」的擷取點 index（不存在回傳 -1）
+  int _indexOfPrevCapture(List<Duration> times, Duration pos) {
+    int lo = 0, hi = times.length - 1, ans = -1;
+    while (lo <= hi) {
+      final mid = (lo + hi) >> 1;
+      if (times[mid] <= pos) {
+        ans = mid;
+        lo = mid + 1;
+      } else {
+        hi = mid - 1;
+      }
+    }
+    return ans;
+  }
+
   @override
   Widget build(BuildContext context) {
     final videoController = _controller;
@@ -597,6 +659,41 @@ class _HomePageState extends State<HomePage> {
                                 ],
                               ),
                             ),
+                            Row(
+                              children: [
+                                const SizedBox(width: 8),
+                                IconButton(
+                                  tooltip: '上一個擷取點',
+                                  icon: const Icon(Icons.skip_previous),
+                                  onPressed: () {
+                                    final segments = _buildSegments(videoController.value.duration);
+                                    final capTimes = _plannedCaptureTimesFromSegments(segments);
+                                    if (capTimes.isEmpty) return;
+                                    // 往前找（略小一點避免剛好在點上也算下一個）
+                                    final idx = _indexOfPrevCapture(capTimes, videoController.value.position - const Duration(milliseconds: 1));
+                                    if (idx >= 0) {
+                                      videoController.seekTo(capTimes[idx]);
+                                      setState(() {});
+                                    }
+                                  },
+                                ),
+                                IconButton(
+                                  tooltip: '下一個擷取點',
+                                  icon: const Icon(Icons.skip_next),
+                                  onPressed: () {
+                                    final segments = _buildSegments(videoController.value.duration);
+                                    final capTimes = _plannedCaptureTimesFromSegments(segments);
+                                    if (capTimes.isEmpty) return;
+                                    final idx = _indexOfPrevCapture(capTimes, videoController.value.position);
+                                    if (idx + 1 < capTimes.length) {
+                                      videoController.seekTo(capTimes[idx + 1]);
+                                      setState(() {});
+                                    }
+                                  },
+                                ),
+
+                              ],
+                            ),
                             Slider(
                               value: videoController.value.position.inMilliseconds.toDouble().clamp(
                                 0.0,
@@ -636,12 +733,52 @@ class _HomePageState extends State<HomePage> {
                               padding: const EdgeInsets.symmetric(horizontal: 24),
                               child: SizedBox(
                                 height: 20,
-                                child: CustomPaint(
-                                  painter: _MarkersPainter(
-                                    duration: videoController.value.duration,
-                                    rules: rules,
-                                    stops: stopPoints,
-                                  ),
+                                child: LayoutBuilder(
+                                  builder: (context, constraints) {
+                                    final segments = _buildSegments(videoController.value.duration);
+                                    final capTimes = _plannedCaptureTimesFromSegments(segments);
+
+                                    double xFor(Duration t) =>
+                                        (t.inMilliseconds / videoController.value.duration.inMilliseconds) * constraints.maxWidth;
+
+                                    Future<void> _jumpToNearestCapture(Offset localPos) async {
+                                      if (capTimes.isEmpty) return;
+                                      final dx = localPos.dx;
+                                      const tolPx = 6.0; // 點擊容忍像素
+                                      Duration? target;
+                                      double best = tolPx + 1;
+                                      for (final t in capTimes) {
+                                        final x = xFor(t);
+                                        final dist = (x - dx).abs();
+                                        if (dist < best) {
+                                          best = dist;
+                                          target = t;
+                                        }
+                                      }
+                                      if (target != null && best <= tolPx) {
+                                        await videoController.seekTo(target);
+                                        setState(() {});
+                                      }
+                                    }
+
+                                    return Stack(
+                                      fit: StackFit.expand,
+                                      children: [
+                                        CustomPaint(
+                                          painter: _MarkersPainter(
+                                            duration: videoController.value.duration,
+                                            rules: rules,
+                                            stops: stopPoints,
+                                            captureTimes: capTimes, // <== 傳入擷取點
+                                          ),
+                                        ),
+                                        GestureDetector(
+                                          behavior: HitTestBehavior.opaque,
+                                          onTapDown: (d) => _jumpToNearestCapture(d.localPosition),
+                                        ),
+                                      ],
+                                    );
+                                  },
                                 ),
                               ),
                             ),
@@ -654,15 +791,17 @@ class _HomePageState extends State<HomePage> {
                               physics: const NeverScrollableScrollPhysics(),
                               itemBuilder: (context, i) {
                                 final r = rules[i];
-// 即時計算這條規則的 end（顯示用）
-                                final seg = _buildSegments(videoController.value.duration)
-                                    .firstWhere((s) => s.rule.start == r.start, orElse: () => _Segment(rule: r));
+                                // 即時計算這條規則的 end（顯示用）
+                                final seg = _buildSegments(
+                                  videoController.value.duration,
+                                ).firstWhere((s) => s.rule.start == r.start, orElse: () => _Segment(rule: r));
                                 final showEnd = seg.rule.end;
                                 return ListTile(
                                   dense: true,
                                   leading: const Icon(Icons.play_circle, color: Colors.green),
                                   title: Text(
-                                      'Start ${_durationText(r.start)} → End ${showEnd != null ? _durationText(showEnd) : '依自動計算'}'),
+                                    'Start ${_durationText(r.start)} → End ${showEnd != null ? _durationText(showEnd) : '依自動計算'}',
+                                  ),
                                   subtitle: Row(
                                     children: [
                                       const Text('間隔(ms): '),
@@ -684,10 +823,7 @@ class _HomePageState extends State<HomePage> {
                                       ),
                                     ],
                                   ),
-                                  trailing: IconButton(
-                                    icon: const Icon(Icons.delete),
-                                    onPressed: () => _removeRule(i),
-                                  ),
+                                  trailing: IconButton(icon: const Icon(Icons.delete), onPressed: () => _removeRule(i)),
                                 );
                               },
                             ),
@@ -703,10 +839,7 @@ class _HomePageState extends State<HomePage> {
                                   dense: true,
                                   leading: const Icon(Icons.stop_circle, color: Colors.red),
                                   title: Text('Stop @ ${_durationText(s)}'),
-                                  trailing: IconButton(
-                                    icon: const Icon(Icons.delete),
-                                    onPressed: () => _removeStop(i),
-                                  ),
+                                  trailing: IconButton(icon: const Icon(Icons.delete), onPressed: () => _removeStop(i)),
                                 );
                               },
                             ),
@@ -810,20 +943,32 @@ class _MarkersPainter extends CustomPainter {
   final Duration duration;
   final List<CaptureRule> rules;
   final List<Duration> stops;
+  final List<Duration> captureTimes;
 
-  _MarkersPainter({required this.duration, required this.rules, required this.stops});
+  _MarkersPainter({required this.duration, required this.rules, required this.stops, required this.captureTimes});
 
   @override
   void paint(Canvas canvas, Size size) {
     final base = Paint()..color = Colors.grey.shade300;
     final startPaint = Paint()..color = Colors.green;
     final stopPaint = Paint()..color = Colors.red;
+    final capPaint = Paint()..color = Colors.black87;
 
     // 底色（已由父容器提供灰色，可略）
     canvas.drawRect(Offset.zero & size, base);
 
     if (duration.inMilliseconds == 0) return;
     double xFor(Duration t) => (t.inMilliseconds / duration.inMilliseconds) * size.width;
+
+    // 先畫擷取點（每個 interval）
+    for (final t in captureTimes) {
+      final x = xFor(t).clamp(0.0, size.width);
+      // 細小刻度
+      canvas.drawRect(
+        Rect.fromCenter(center: Offset(x, size.height / 2), width: 2, height: size.height),
+        capPaint,
+      );
+    }
 
     // 畫開始點（規則）
     final sortedRules = [...rules]..sort((a, b) => a.start.compareTo(b.start));
@@ -857,7 +1002,8 @@ class _MarkersPainter extends CustomPainter {
 
   @override
   bool shouldRepaint(covariant _MarkersPainter old) {
-    return old.duration != duration || old.rules != rules || old.stops != stops;
+    return old.duration != duration || old.rules != rules || old.stops != stops ||
+        old.captureTimes != captureTimes;
   }
 }
 
