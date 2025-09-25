@@ -321,11 +321,13 @@ class _HomePageState extends State<HomePage> {
                     onPressed: () async {
                       if (videoPath == null || rectVideoPx == null) return;
 
-                      final outputDir = await getApplicationDocumentsDirectory();
+                      final videoName = p.basenameWithoutExtension(videoPath!);
+                      final appDocDir = await getApplicationDocumentsDirectory();
+                      final outputPath = p.join(appDocDir.path, 'export_$videoName');
 
                       runCapture(
                         inputPath: videoPath!,
-                        outputDir: outputDir.path,
+                        outputDir: outputPath,
                         start: Duration.zero,
                         interval: const Duration(seconds: 1),
                         rect: rectVideoPx!, //Rect.fromLTWH(0, 0, 2160, 1440),
