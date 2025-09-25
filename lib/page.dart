@@ -328,11 +328,16 @@ class _HomePageState extends State<HomePage> {
         final startStillPath = p.join(segDir.path, 'frame_start.png');
         final argsStart = [
           '-hide_banner',
-          '-loglevel', 'info',
-          '-ss', (r.start.inMilliseconds / 1000).toStringAsFixed(3),
-          '-i', inputPath,
-          '-vf', 'crop=$w:$h:$x:$y',
-          '-frames:v', '1',
+          '-loglevel',
+          'info',
+          '-ss',
+          (r.start.inMilliseconds / 1000).toStringAsFixed(3),
+          '-i',
+          inputPath,
+          '-vf',
+          'crop=$w:$h:$x:$y',
+          '-frames:v',
+          '1',
           startStillPath,
         ];
         _addLog('執行(起點單張): ffmpeg ${argsStart.join(' ')}');
@@ -346,6 +351,7 @@ class _HomePageState extends State<HomePage> {
           _addLog('起點單張失敗 seg_$i: $e');
         }
       }
+
       await forceCaptureSegStart();
 
       final fps = 1 / (r.interval.inMilliseconds / 1000.0);
@@ -527,6 +533,33 @@ class _HomePageState extends State<HomePage> {
     return ans;
   }
 
+  // 是否在 a 與 b 之間有停止點（嚴格介於之間；端點不算）
+  bool _hasStopBetween(Duration a, Duration b) {
+    if (stopPoints.isEmpty) return false;
+    final lo = a <= b ? a : b;
+    final hi = a <= b ? b : a;
+    for (final s in stopPoints) {
+      if (s > lo && s < hi) return true;
+    }
+    return false;
+  }
+
+  // 尋找「距離目前播放時間最近且中間沒有停止點」的 rule
+  CaptureRule? _nearestRuleFor(Duration pos) {
+    if (rules.isEmpty) return null;
+    CaptureRule? best;
+    int bestAbs = 1 << 30;
+    for (final r in rules) {
+      if (_hasStopBetween(r.start, pos)) continue; // 有停止點擋住則跳過
+      final diff = (r.start.inMilliseconds - pos.inMilliseconds).abs();
+      if (diff < bestAbs) {
+        bestAbs = diff;
+        best = r;
+      }
+    }
+    return best;
+  }
+
   @override
   Widget build(BuildContext context) {
     final videoController = _controller;
@@ -670,7 +703,10 @@ class _HomePageState extends State<HomePage> {
                                     final capTimes = _plannedCaptureTimesFromSegments(segments);
                                     if (capTimes.isEmpty) return;
                                     // 往前找（略小一點避免剛好在點上也算下一個）
-                                    final idx = _indexOfPrevCapture(capTimes, videoController.value.position - const Duration(milliseconds: 1));
+                                    final idx = _indexOfPrevCapture(
+                                      capTimes,
+                                      videoController.value.position - const Duration(milliseconds: 1),
+                                    );
                                     if (idx >= 0) {
                                       videoController.seekTo(capTimes[idx]);
                                       setState(() {});
@@ -691,7 +727,36 @@ class _HomePageState extends State<HomePage> {
                                     }
                                   },
                                 ),
+                                const SizedBox(width: 8),
+                                ElevatedButton(
+                                  onPressed: () {
+                                    final c = _controller;
+                                    if (c == null) return;
+                                    final pos = c.value.position;
 
+                                    final nearest = _nearestRuleFor(pos);
+                                    if (nearest == null) {
+                                      showToast("找不到最近的開始點（中間有停止點或尚未建立規則）");
+                                      return;
+                                    }
+
+                                    final ms = (pos - nearest.start).inMilliseconds.abs();
+                                    if (ms <= 0) {
+                                      showToast("目前時間與最近開始點相同，無法推算間隔");
+                                      return;
+                                    }
+
+                                    setState(() => _defaultIntervalMs = ms);
+                                    showToast(
+                                      "已將預設間隔設為 $ms ms（最近開始點：${_durationText(nearest.start)} → 目前：${_durationText(pos)}）",
+                                    );
+
+                                    // 若你想同時把「最近那條 rule 的 interval」也一併更新，可解除下列註解：
+                                    // final idx = rules.indexWhere((r) => r.start == nearest.start);
+                                    // if (idx >= 0) setState(() => rules[idx] = rules[idx].copyWith(interval: Duration(milliseconds: ms)));
+                                  },
+                                  child: const Text('用最近開始點推算間隔'),
+                                ),
                               ],
                             ),
                             Slider(
@@ -739,7 +804,8 @@ class _HomePageState extends State<HomePage> {
                                     final capTimes = _plannedCaptureTimesFromSegments(segments);
 
                                     double xFor(Duration t) =>
-                                        (t.inMilliseconds / videoController.value.duration.inMilliseconds) * constraints.maxWidth;
+                                        (t.inMilliseconds / videoController.value.duration.inMilliseconds) *
+                                        constraints.maxWidth;
 
                                     Future<void> _jumpToNearestCapture(Offset localPos) async {
                                       if (capTimes.isEmpty) return;
@@ -964,10 +1030,7 @@ class _MarkersPainter extends CustomPainter {
     for (final t in captureTimes) {
       final x = xFor(t).clamp(0.0, size.width);
       // 細小刻度
-      canvas.drawRect(
-        Rect.fromCenter(center: Offset(x, size.height / 2), width: 2, height: size.height),
-        capPaint,
-      );
+      canvas.drawRect(Rect.fromCenter(center: Offset(x, size.height / 2), width: 2, height: size.height), capPaint);
     }
 
     // 畫開始點（規則）
@@ -1002,8 +1065,7 @@ class _MarkersPainter extends CustomPainter {
 
   @override
   bool shouldRepaint(covariant _MarkersPainter old) {
-    return old.duration != duration || old.rules != rules || old.stops != stops ||
-        old.captureTimes != captureTimes;
+    return old.duration != duration || old.rules != rules || old.stops != stops || old.captureTimes != captureTimes;
   }
 }
 
