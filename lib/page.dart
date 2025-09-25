@@ -10,8 +10,6 @@ import 'package:video_player/video_player.dart';
 
 import 'other.dart';
 
-
-
 class CaptureRule {
   CaptureRule({required this.start, this.end, required this.interval, required this.rect});
 
@@ -179,7 +177,7 @@ class _HomePageState extends State<HomePage> {
       final r = rectVideoPx!;
       debugPrint(
         "選取(影片像素): x=${r.left.toStringAsFixed(1)}, y=${r.top.toStringAsFixed(1)}, "
-            "w=${r.width.toStringAsFixed(1)}, h=${r.height.toStringAsFixed(1)}",
+        "w=${r.width.toStringAsFixed(1)}, h=${r.height.toStringAsFixed(1)}",
       );
     }
   }
@@ -345,37 +343,37 @@ class _HomePageState extends State<HomePage> {
                   videoController == null
                       ? const Text("請先選擇影片")
                       : Container(
-                    color: Colors.black,
-                    width: double.infinity,
-                    child: AspectRatio(
-                      aspectRatio: videoController.value.aspectRatio,
-                      child: Stack(
-                        children: [
-                          VideoPlayer(videoController),
-                          // 透明互動層
-                          Positioned.fill(
-                            child: LayoutBuilder(
-                              builder: (context, box) {
-                                final paintSize = Size(box.maxWidth, box.maxHeight); // 當前顯示大小
-                                return GestureDetector(
-                                  behavior: HitTestBehavior.opaque,
-                                  onPanStart: (d) => _onPanStart(d, paintSize),
-                                  onPanUpdate: (d) => _onPanUpdate(d, paintSize),
-                                  onPanEnd: (_) => _onPanEnd(),
-                                  child: CustomPaint(
-                                    painter: RectOnVideoPainter(
-                                      rectVideoPx: rectVideoPx,
-                                      toScreen: (rv) => _videoRectToScreen(rv, paintSize),
-                                    ),
+                          color: Colors.black,
+                          width: double.infinity,
+                          child: AspectRatio(
+                            aspectRatio: videoController.value.aspectRatio,
+                            child: Stack(
+                              children: [
+                                VideoPlayer(videoController),
+                                // 透明互動層
+                                Positioned.fill(
+                                  child: LayoutBuilder(
+                                    builder: (context, box) {
+                                      final paintSize = Size(box.maxWidth, box.maxHeight); // 當前顯示大小
+                                      return GestureDetector(
+                                        behavior: HitTestBehavior.opaque,
+                                        onPanStart: (d) => _onPanStart(d, paintSize),
+                                        onPanUpdate: (d) => _onPanUpdate(d, paintSize),
+                                        onPanEnd: (_) => _onPanEnd(),
+                                        child: CustomPaint(
+                                          painter: RectOnVideoPainter(
+                                            rectVideoPx: rectVideoPx,
+                                            toScreen: (rv) => _videoRectToScreen(rv, paintSize),
+                                          ),
+                                        ),
+                                      );
+                                    },
                                   ),
-                                );
-                              },
+                                ),
+                              ],
                             ),
                           ),
-                        ],
-                      ),
-                    ),
-                  ),
+                        ),
                   if (videoController != null) ...[
                     ValueListenableBuilder(
                       valueListenable: videoController,
@@ -484,16 +482,16 @@ class _HomePageState extends State<HomePage> {
                             .map(
                               (sign) => [1000, 500, 300, 100, 50, 10, 1].map(
                                 (ms) => ElevatedButton(
-                              onPressed: () {
-                                var start = videoController.value.position;
-                                start += Duration(milliseconds: sign * ms);
-                                videoController.seekTo(start);
-                                setState(() {});
-                              },
-                              child: Text('${sign < 0 ? '-' : '+'}$ms ms'),
-                            ),
-                          ),
-                        )
+                                  onPressed: () {
+                                    var start = videoController.value.position;
+                                    start += Duration(milliseconds: sign * ms);
+                                    videoController.seekTo(start);
+                                    setState(() {});
+                                  },
+                                  child: Text('${sign < 0 ? '-' : '+'}$ms ms'),
+                                ),
+                              ),
+                            )
                             .expand((e) => e),
                       ],
                     ),
