@@ -217,6 +217,67 @@ class _PanoramaCutterPageState extends State<PanoramaCutterPage> {
     }
   }
 
+  Future<void> _exportSegments() async {
+    if (images.isEmpty) {
+      BotToast.showText(text: '尚未載入圖片');
+      return;
+    }
+    final kept = segments.where((s) => s.keep && s.width > 0).toList();
+    if (kept.isEmpty) {
+      BotToast.showText(text: '沒有保留的片段');
+      return;
+    }
+
+    final outDir = await getDownloadsDirectory() ?? await getApplicationDocumentsDirectory();
+    final ts = DateTime
+        .now()
+        .millisecondsSinceEpoch;
+
+    int index = 0;
+    for (final seg in kept) {
+      final recorder = ui.PictureRecorder();
+      final canvas = Canvas(recorder);
+      final paint = Paint();
+
+
+      double start = seg.startX;
+      double remaining = seg.width;
+      double dx = 0;
+      while (remaining > 0.0) {
+        final idx = (start / imgW).floor().clamp(0, images.length - 1);
+        final img = images[idx].image;
+        final imgStartX = idx * imgW;
+        final localX = start - imgStartX;
+        final take = math.min(remaining, imgW - localX);
+
+
+        final src = Rect.fromLTWH(localX, 0, take, imgH);
+        final dst = Rect.fromLTWH(dx, 0, take, imgH);
+        canvas.drawImageRect(img, src, dst, paint);
+
+        start += take;
+        dx += take;
+        remaining -= take;
+      }
+
+      final picture = recorder.endRecording();
+      final uiImage = await picture.toImage(seg.width.round(), imgH.round());
+      final byteData = await uiImage.toByteData(format: ui.ImageByteFormat.png);
+      if (byteData == null) {
+        BotToast.showText(text: '輸出失敗');
+        return;
+      }
+      final bytes = byteData.buffer.asUint8List();
+
+      final outDir = await getDownloadsDirectory() ?? await getApplicationDocumentsDirectory();
+      final ts = DateTime.now().millisecondsSinceEpoch;
+      final outPath = p.join(outDir.path, 'panorama_$index.png');
+      final outFile = File(outPath);
+      await outFile.writeAsBytes(bytes);
+      index++;
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final canEdit = images.isNotEmpty;
@@ -239,7 +300,7 @@ class _PanoramaCutterPageState extends State<PanoramaCutterPage> {
           const SizedBox(width: 8),
           IconButton(
             tooltip: '匯出 (產生新圖)',
-            onPressed: canEdit ? _exportImage : null,
+            onPressed: canEdit ? _exportSegments : null, // _exportImage
             icon: const Icon(Icons.download),
           ),
           const SizedBox(width: 8),
