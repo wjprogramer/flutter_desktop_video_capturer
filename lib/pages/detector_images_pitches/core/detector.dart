@@ -66,17 +66,29 @@ class ImageResult {
 }
 
 // ===== 核心流程 =====
-Future<ImageResult> processImage(String fileName, img.Image image, {
-  List<int>? gridLinesYOverride,
-}) async {
+Future<ImageResult> processImage(String fileName, img.Image image, {List<int>? gridLinesYOverride}) async {
   final w = image.width, h = image.height;
   final mask = _blueMask(image); // 1) 藍色遮罩 + 形態學
 
   // 在跑 BFS 之前，先移除垂直導引線
   _suppressVerticalGuideBand(mask, w, h);
 
+  // 建立亮度快取（Value 0~1）
+  final vImage = List<double>.filled(w * h, 0);
+  for (int y = 0; y < h; y++) {
+    for (int x = 0; x < w; x++) {
+      final p = image.getPixel(x, y);
+      final v = [
+        p.rNormalized,
+        p.gNormalized,
+        p.bNormalized,
+      ].reduce((a, b) => a > b ? a : b); // HSV 的 V 分量 = max(r,g,b)
+      vImage[y * w + x] = v.toDouble();
+    }
+  }
+
   final boxes =
-      _connectedComponents(mask, w, h) // 2) 連通元件 -> bbox 過濾
+      _connectedComponents(mask, w, h, getV: (x, y) => vImage[y * w + x]) // 2) 連通元件 -> bbox 過濾
           .where((b) {
             final bw = (b[2] - b[0] + 1).toDouble();
             final bh = (b[3] - b[1] + 1).toDouble();
@@ -109,15 +121,7 @@ Future<ImageResult> processImage(String fileName, img.Image image, {
     final resolvedH = (y1 - y0 + 1) / h;
 
     bars.add(
-      DetectedBar(
-        xCenter: xcn,
-        x0: x0n,
-        x1: x1n,
-        yUnits: yUnits,
-        yNorm: yNorm,
-        w: (x1 - x0 + 1) / w,
-        h: resolvedH,
-      ),
+      DetectedBar(xCenter: xcn, x0: x0n, x1: x1n, yUnits: yUnits, yNorm: yNorm, w: (x1 - x0 + 1) / w, h: resolvedH),
     );
   }
 
@@ -161,7 +165,10 @@ List<int> _morphDilateH(List<int> mask, int w, int h, {int rx = 3}) {
       for (int dx = -rx; dx <= rx; dx++) {
         final nx = x + dx;
         if (nx < 0 || nx >= w) continue;
-        if (mask[rowOff + nx] != 0) { v = 1; break; }
+        if (mask[rowOff + nx] != 0) {
+          v = 1;
+          break;
+        }
       }
       out[rowOff + x] = v;
     }
@@ -178,7 +185,10 @@ List<int> _morphErodeH(List<int> mask, int w, int h, {int rx = 3}) {
       for (int dx = -rx; dx <= rx; dx++) {
         final nx = x + dx;
         if (nx < 0 || nx >= w) continue;
-        if (mask[rowOff + nx] == 0) { v = 0; break; }
+        if (mask[rowOff + nx] == 0) {
+          v = 0;
+          break;
+        }
       }
       out[rowOff + x] = v;
     }
@@ -245,7 +255,12 @@ List<int> _erode(List<int> mask, int w, int h, int k) {
 }
 
 // ====== 2) 連通元件（4-鄰域）回傳 bbox ======
-List<List<int>> _connectedComponents(List<int> mask, int w, int h) {
+List<List<int>> _connectedComponents(
+  List<int> mask,
+  int w,
+  int h, {
+  double Function(int x, int y)? getV, // 0..1 的亮度(Value)
+}) {
   final labels = List<int>.filled(w * h, -1);
   final boxes = <List<int>>[]; // [x0,y0,x1,y1,area]
   int label = 0;
@@ -294,11 +309,62 @@ List<List<int>> _connectedComponents(List<int> mask, int w, int h) {
       final bh = (maxy - miny + 1);
       final vertRatio = bh / (bw.toDouble() + 1e-6);
 
-      // 垂直又很高、而且很窄（寬度 <= 3% 畫面、且高度 >= 60% 畫面）→ 視為導引線或其碎片，捨棄
+      // 先丟掉垂直導引線類
       final isTallThinVertical = vertRatio > 6.0 && bw <= (0.03 * w) && bh >= (0.60 * h);
       if (isTallThinVertical) {
         label++;
-        continue; // 不加入 boxes
+        continue;
+      }
+
+      // 幾何過濾：藍條應該是「橫向長條」
+      final aspect = bw / (bh.toDouble() + 1e-6);
+      final isHorizontalBarShape =
+          aspect >= 3.0 && // 橫向拉長
+          bh >= 2 && // 至少 2px 高
+          bw >= (0.02 * w); // 不要太短的小碎片
+      if (!isHorizontalBarShape) {
+        label++;
+        continue;
+      }
+
+      // 亮度與上緣白色反光（需提供 getV: 0..1）
+      if (getV != null) {
+        // 元件內部平均亮度（應該偏亮）
+        double sumV = 0;
+        int cntV = 0;
+        for (int yy = miny; yy <= maxy; yy++) {
+          final off = yy * w;
+          for (int xx = minx; xx <= maxx; xx++) {
+            if (mask[off + xx] != 0) {
+              sumV += getV(xx, yy);
+              cntV++;
+            }
+          }
+        }
+        final meanV = cntV > 0 ? (sumV / cntV) : 0.0;
+        if (meanV < 0.55) {
+          label++;
+          continue;
+        } // 藍條本體要有一定亮度
+
+        // FIXME: 判斷不太好
+        // 上緣白色反光：在框上緣上方 1~2px 掃一條水平帶，要求有一段高亮
+        // final yBand = (miny - 1).clamp(0, h - 1);
+        // final yBand2 = (miny - 2).clamp(0, h - 1);
+        // int samples = 0, bright = 0;
+        // final stepX = (bw ~/ 40).clamp(1, 6);
+        // for (int xx = minx; xx <= maxx; xx += stepX) {
+        //   final v1 = getV(xx, yBand);
+        //   final v2 = getV(xx, yBand2);
+        //   final v = v1 > v2 ? v1 : v2; // 取較亮的那層
+        //   if (v >= 0.85) bright++;
+        //   samples++;
+        // }
+        // final hasSpecular = samples > 0 && (bright / samples) >= 0.25;
+        // if (!hasSpecular) {
+        //   label++;
+        //   continue;
+        // }
       }
 
       boxes.add([minx, miny, maxx, maxy, cnt]);
@@ -570,7 +636,11 @@ void _suppressVerticalGuideBand(List<int> mask, int w, int h) {
       if (width <= (0.03 * w)) {
         int score = 0;
         for (int i = curL; i <= curR; i++) score += colSum[i];
-        if (score > bestScore) { bestScore = score; bestL = curL; bestR = curR; }
+        if (score > bestScore) {
+          bestScore = score;
+          bestL = curL;
+          bestR = curR;
+        }
       }
       curL = -1;
     }
@@ -581,7 +651,11 @@ void _suppressVerticalGuideBand(List<int> mask, int w, int h) {
     if (width <= (0.03 * w)) {
       int score = 0;
       for (int i = curL; i <= curR; i++) score += colSum[i];
-      if (score > bestScore) { bestScore = score; bestL = curL; bestR = curR; }
+      if (score > bestScore) {
+        bestScore = score;
+        bestL = curL;
+        bestR = curR;
+      }
     }
   }
 
@@ -596,4 +670,3 @@ void _suppressVerticalGuideBand(List<int> mask, int w, int h) {
     }
   }
 }
-
