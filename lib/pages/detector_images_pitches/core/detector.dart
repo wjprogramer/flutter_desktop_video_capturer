@@ -288,34 +288,27 @@ List<int> _detectGridLines(img.Image im) {
     sm[y] = s / (c == 0 ? 1 : c);
   }
   // 峰值
-  final peaks = <int>[];
-  final minDist = (h / 20).floor(); // 放寬間距
-  final thr = _percentile(sm, 0.75); // 降低門檻，提高容忍度
-  for (int y = 2; y < h - 2; y++) {
+  // 產生候選峰（不使用 minDist，門檻放低）——最多取前 60 個最強者
+  final cands = <int>[];
+  final scores = <double>[];
+  final thrCand = _percentile(sm, 0.60);
+  for (int y = 1; y < h - 1; y++) {
     final v = sm[y];
-    final isPeak = v > thr && v >= sm[y - 1] && v >= sm[y + 1];
-    if (!isPeak) continue;
-
-    // 避免重複太近的峰；保留能量更大的
-    if (peaks.isNotEmpty && (y - peaks.last).abs() < minDist) {
-      final last = peaks.last;
-      if (sm[y] > sm[last]) {
-        peaks[peaks.length - 1] = y;
-      }
-    } else {
-      peaks.add(y);
+    if (v > thrCand && v >= sm[y - 1] && v >= sm[y + 1]) {
+      cands.add(y);
+      scores.add(v);
     }
   }
 
-  peaks.sort();
-  if (peaks.length != 10) {
-    // 等距回歸補齊/裁切
-    final a = peaks.isNotEmpty ? peaks.first.toDouble() : h * 0.15;
-    final b = peaks.length > 1 ? (peaks.last - a) / math.max(1, (peaks.length - 1)) : h / 12.0;
-    final approx = [for (int k = 0; k < 10; k++) (a + b * k).round().clamp(0, h - 1)];
-    return approx;
-  }
-  return peaks;
+  // 依能量由高到低，最多留 60 個候選
+  final idx = List<int>.generate(cands.length, (i) => i);
+  idx.sort((a, b) => scores[b].compareTo(scores[a]));
+  final maxKeep = 60;
+  final kept = idx.take(maxKeep).map((i) => cands[i]).toList()..sort();
+
+  // 用候選線（kept）挑出最等距的 10 條
+  final best10 = _pickBestArithmetic10(kept, h);
+  return best10;
 }
 
 // ====== 小工具 ======
@@ -349,3 +342,145 @@ double _percentile(List<double> arr, double p) {
 }
 
 double _clamp(double v, double lo, double hi) => v < lo ? lo : (v > hi ? hi : v);
+
+/// 從候選線中「挑出最等距的 10 條」
+///
+/// 在同一支檔案中新增一個工具函式 _pickBestArithmetic10，並在 _detectGridLines 的最後用它來挑 10 條線。
+/// 如果候選不足 10 會自動用等距補齊。
+List<int> _pickBestArithmetic10(List<int> cand, int h) {
+  if (cand.isEmpty) {
+    // 完全沒候選：給一個等距預設
+    final top = (h * 0.15).round();
+    final bot = (h * 0.85).round();
+    final step = (bot - top) / 9.0;
+    return [for (int k = 0; k < 10; k++) (top + step * k).round().clamp(1, h - 2)];
+  }
+  cand.sort();
+  // 候選少於 10：先回歸出等距格，再「吸附」最近候選；缺的就用等距
+  if (cand.length <= 10) {
+    final top = cand.first, bot = cand.last;
+    final step = ((bot - top) / math.max(1, cand.length - 1)).clamp(2.0, h / 8);
+    final approx = [for (int k = 0; k < 10; k++) (top + step * k).round()];
+    return _snapToCandidates(approx, cand, h, win: 3);
+  }
+
+  // 估計間距（候選相鄰差的中位數）
+  final diffs = <int>[];
+  for (int i = 1; i < cand.length; i++) diffs.add(cand[i] - cand[i - 1]);
+  diffs.sort();
+  final spacingGuess = diffs[diffs.length ~/ 2].toDouble().clamp(2.0, h / 6);
+  final tau = math.max(2.0, spacingGuess * 0.25); // 容許誤差
+
+  double bestCost = double.infinity;
+  List<int> best = [];
+
+  // RANSAC 風格：從候選兩點 + 假設其對應 slot (m,n) 建立等差模型 y ≈ a + b*k
+  // 為控複雜度，只試少量最具代表性的 pairs
+  final picks = <int>[];
+  // 取頭、中、尾附近的代表性索引（避免 O(N^4)）
+  for (final i in [0, (cand.length ~/ 4), (cand.length ~/ 2), (cand.length * 3 ~/ 4), cand.length - 1]) {
+    if (i >= 0 && i < cand.length) picks.add(i);
+  }
+  final uniq = picks.toSet().toList()..sort();
+
+  for (final ii in uniq) {
+    for (final jj in uniq) {
+      if (jj <= ii) continue;
+      final yi = cand[ii].toDouble();
+      final yj = cand[jj].toDouble();
+
+      for (int m = 0; m < 9; m++) {
+        for (int n = m + 1; n < 10; n++) {
+          final b = (yj - yi) / (n - m);
+          if (b < spacingGuess * 0.5 || b > spacingGuess * 1.8) continue; // 排除離譜間距
+          final a = yi - b * m;
+
+          // 生成 10 個槽位，貪婪匹配候選，計算殘差
+          final slots = [for (int k = 0; k < 10; k++) a + b * k];
+          final picked = _assignSlots(slots, cand, tau);
+          if (picked.isEmpty) continue;
+
+          // cost：槽位與被指派候選的 |誤差| 之和 + 罰則（未命中槽位）
+          double cost = 0;
+          for (int k = 0; k < 10; k++) {
+            final y = picked[k];
+            if (y == null) {
+              cost += tau * 2; // miss 罰則
+            } else {
+              cost += (y - slots[k]).abs();
+            }
+          }
+          if (cost < bestCost) {
+            bestCost = cost;
+            // 若某槽位沒命中，就用槽位值補；最後再做小吸附
+            final base = <int>[for (int k = 0; k < 10; k++) (picked[k]?.round() ?? slots[k].round()).clamp(1, h - 2)];
+            best = _snapToCandidates(base, cand, h, win: math.max(3, (b * 0.15).round()));
+          }
+        }
+      }
+    }
+  }
+
+  if (best.isNotEmpty) return best..sort();
+
+  // 後備：用候選的首尾做等距，再吸附
+  final top = cand.first, bot = cand.last;
+  final step = ((bot - top) / 9.0).clamp(2.0, h / 8);
+  final approx = [for (int k = 0; k < 10; k++) (top + step * k).round()];
+  return _snapToCandidates(approx, cand, h, win: 4)..sort();
+}
+
+// 在每個預測 y 附近 ±win 內，吸附到最近候選（若沒有就保留原值）
+List<int> _snapToCandidates(List<int> approx, List<int> cand, int h, {int win = 3}) {
+  final out = <int>[];
+  for (final y0 in approx) {
+    final lo = (y0 - win).clamp(1, h - 2);
+    final hi = (y0 + win).clamp(1, h - 2);
+    int best = y0;
+    int bi = _lowerBound(cand, y0);
+    // 檢查 y0 附近的幾個候選
+    for (final j in [bi - 2, bi - 1, bi, bi + 1, bi + 2]) {
+      if (j >= 0 && j < cand.length) {
+        final y = cand[j];
+        if (y >= lo && y <= hi && (y - y0).abs() < (best - y0).abs()) best = y;
+      }
+    }
+    out.add(best);
+  }
+  return out;
+}
+
+// 將槽位依序指派到最接近的候選（距離 > tau 視為 miss），返回每個槽位指派的 y（或 null）
+List<double?> _assignSlots(List<double> slots, List<int> cand, double tau) {
+  final out = List<double?>.filled(slots.length, null);
+  int i = 0;
+  for (int k = 0; k < slots.length; k++) {
+    final target = slots[k];
+    // 前進到 >= target 的候選
+    while (i < cand.length - 1 && cand[i] < target) i++;
+    double bestDist = double.infinity;
+    double? best;
+    for (final j in [i - 1, i, i + 1]) {
+      if (j < 0 || j >= cand.length) continue;
+      final d = (cand[j] - target).abs();
+      if (d < bestDist) {
+        bestDist = d;
+        best = cand[j].toDouble();
+      }
+    }
+    if (best != null && bestDist <= tau) out[k] = best;
+  }
+  return out;
+}
+
+int _lowerBound(List<int> a, int x) {
+  int lo = 0, hi = a.length;
+  while (lo < hi) {
+    final mid = (lo + hi) >> 1;
+    if (a[mid] < x)
+      lo = mid + 1;
+    else
+      hi = mid;
+  }
+  return lo;
+}
