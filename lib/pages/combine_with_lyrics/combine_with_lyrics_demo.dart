@@ -33,11 +33,11 @@ class _CombineWithLyricsDemoPageState extends State<CombineWithLyricsDemoPage> {
 
   void _printNewPitchDataList() {
     const startTimeForAdjust = Duration(seconds: 0);
-    const adjustTime = Duration(seconds: 1, milliseconds: 200); // 1.2
+    const adjustTime = Duration(seconds: 12, milliseconds: 55); // 1.2
 
     final newPitchData = _pitchData.map((p) {
       if (p.start >= startTimeForAdjust) {
-        return _PitchData(pitchIndex: p.pitchIndex, start: p.start - adjustTime, end: p.end - adjustTime);
+        return _PitchData(pitchIndex: p.pitchIndex, start: p.start + adjustTime, end: p.end + adjustTime);
       } else {
         return _PitchData(pitchIndex: p.pitchIndex, start: p.start, end: p.end);
       }
@@ -62,10 +62,9 @@ class _CombineWithLyricsDemoPageState extends State<CombineWithLyricsDemoPage> {
         onPressed: () {
           final p = demoDryFlowerPitchData.map((e) => _PitchData.fromJson(e)).toList();
           print(p.first.start);
-          print(p.first.end);
 
           print(_lyricsLines.first.startTime);
-          print(_lyricsLines.first.endTime);
+          print(p.first.start - _lyricsLines.first.startTime);
 
           print('-----');
           _printNewPitchDataList();
