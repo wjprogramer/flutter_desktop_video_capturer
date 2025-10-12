@@ -10,6 +10,7 @@ import 'package:path/path.dart' as p;
 import 'package:path_provider/path_provider.dart';
 import 'package:video_player/video_player.dart';
 
+import 'models/capture_meta_file.dart';
 import 'other.dart';
 
 class CaptureRule {
@@ -308,20 +309,16 @@ class _HomePageState extends State<HomePage> {
       projectDir.createSync(recursive: true);
     }
 
-    final meta = <String, dynamic>{
-      "video": videoPath,
-      "rect": {
-        "x": rectVideoPx!.left.round(),
-        "y": rectVideoPx!.top.round(),
-        "w": rectVideoPx!.width.round(),
-        "h": rectVideoPx!.height.round(),
-      },
-      "rules": rules
-          .map((r) => {"start_ms": r.start.inMilliseconds, "interval_ms": r.interval.inMilliseconds})
-          .toList(),
-      "stops_ms": stopPoints.map((e) => e.inMilliseconds).toList(),
-      "segments": <Map<String, dynamic>>[],
-    };
+    final meta = CaptureMetaFile(
+      videoPath: videoPath,
+      x: rectVideoPx!.left.round(),
+      y: rectVideoPx!.top.round(),
+      w: rectVideoPx!.width.round(),
+      h: rectVideoPx!.height.round(),
+      rules: rules,
+      stopPoints: stopPoints,
+      segments: [],
+    );
 
     _addLog('共 ${segs.length} 段要擷取');
 
@@ -424,14 +421,14 @@ class _HomePageState extends State<HomePage> {
         plannedTimes.add(t);
       }
 
-      meta["segments"].add({
-        "index": i,
-        "start_ms": r.start.inMilliseconds,
-        "end_ms": r.end?.inMilliseconds,
-        "interval_ms": r.interval.inMilliseconds,
-        "output_dir": segDir.path,
-        "planned_capture_times_ms": plannedTimes,
-      });
+      meta.segments.add(CapturedSegment(
+        index: i,
+        start: r.start,
+        end: r.end,
+        interval: r.interval,
+        outputDir: segDir.path,
+        plannedCaptureTimesMs: plannedTimes,
+      ));
     }
 
     // for (var rule in newRules) {
