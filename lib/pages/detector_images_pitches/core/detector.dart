@@ -102,6 +102,7 @@ Future<ImageResult> processImage(String fileName, img.Image image, {
 
     final yUnits = (yBottom - yc) / spacing; // 由下往上；可負
     final yNorm = _clamp(yUnits / 9.0, 0, 1);
+    final resolvedH = (y1 - y0 + 1) / h;
 
     bars.add(
       DetectedBar(
@@ -111,7 +112,7 @@ Future<ImageResult> processImage(String fileName, img.Image image, {
         yUnits: yUnits,
         yNorm: yNorm,
         w: (x1 - x0 + 1) / w,
-        h: (y1 - y0 + 1) / h,
+        h: resolvedH,
       ),
     );
   }

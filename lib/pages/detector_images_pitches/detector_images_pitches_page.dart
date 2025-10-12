@@ -203,6 +203,17 @@ class _DetectorImagesPitchesPageState extends State<DetectorImagesPitchesPage> {
                             tooltip: '使用此圖片的 Grid Lines',
                             icon: Icon(Icons.menu, color: Colors.white),
                           ),
+                          SizedBox(width: 8),
+                          IconButton(
+                            onPressed: () {
+                              final result = _lastResult?.getResult(f);
+                              if (result == null) return;
+
+                              print(const JsonEncoder.withIndent('  ').convert(result.toJson()));
+                            },
+                            tooltip: '除錯用 (Console)',
+                            icon: Icon(Icons.bug_report_outlined, color: Colors.white),
+                          ),
                         ],
                       ),
                     ),
