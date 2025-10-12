@@ -66,7 +66,9 @@ class ImageResult {
 }
 
 // ===== 核心流程 =====
-Future<ImageResult> processImage(String fileName, img.Image image) async {
+Future<ImageResult> processImage(String fileName, img.Image image, {
+  List<int>? gridLinesYOverride,
+}) async {
   final w = image.width, h = image.height;
   final mask = _blueMask(image); // 1) 藍色遮罩 + 形態學
   final boxes =
@@ -79,7 +81,7 @@ Future<ImageResult> processImage(String fileName, img.Image image) async {
           })
           .toList();
 
-  final linesY = _detectGridLines(image); // 3) 找 10 條灰線（不足補齊）
+  final linesY = gridLinesYOverride ?? _detectGridLines(image); // 3) 找 10 條灰線（不足補齊）
   linesY.sort();
   final spacings = [for (var i = 1; i < linesY.length; i++) linesY[i] - linesY[i - 1]];
   final spacing = spacings.isEmpty ? h / 10.0 : spacings.reduce((a, b) => a + b) / spacings.length;

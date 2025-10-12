@@ -23,6 +23,7 @@ class _DetectorImagesPitchesPageState extends State<DetectorImagesPitchesPage> {
   String log = '';
   _ProcessResult? _lastResult;
   List<File> _inputFiles = [];
+  List<int> _gridLinesY = [];
 
   /// 是否要預覽圖片
   bool _preview = true;
@@ -68,7 +69,7 @@ class _DetectorImagesPitchesPageState extends State<DetectorImagesPitchesPage> {
           _append('  無法解析圖片');
           continue;
         }
-        final r = await processImage(p.basename(f.path), im);
+        final r = await processImage(p.basename(f.path), im, gridLinesYOverride: _gridLinesY);
         results.add(r);
       } catch (e) {
         _append('  失敗: $e');
@@ -104,6 +105,16 @@ class _DetectorImagesPitchesPageState extends State<DetectorImagesPitchesPage> {
     final List<Map<String, dynamic>> jsonObjList = _lastResult!.images.map((e) => e.toJson()).toList();
     await File(outputFile).writeAsString(const JsonEncoder.withIndent('  ').convert(jsonObjList));
     _append('完成，已輸出到: $outputFile');
+  }
+
+  /// 將單一 Result 的 grid lines 設定到全域 _gridLinesY，並重新計算結果
+  Future<void> _onSetGridLines(File file) async {
+    final result = _lastResult?.getResult(file);
+    if (result == null) return;
+
+    setState(() {
+      _gridLinesY = result.gridLinesY;
+    });
   }
 
   @override
@@ -151,6 +162,19 @@ class _DetectorImagesPitchesPageState extends State<DetectorImagesPitchesPage> {
                   ),
                 ),
                 const SizedBox(height: 12),
+                Text('Grid Lines'),
+                Wrap(
+                  spacing: 12,
+                  runSpacing: 12,
+                  children: [
+                    FilledButton.icon(
+                      onPressed: _gridLinesY.isEmpty ? null : () => setState(() => _gridLinesY = []),
+                      icon: const Icon(Icons.clear),
+                      label: const Text('清空'),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 12),
                 const Text('Log:'),
                 const SizedBox(height: 8),
                 SizedBox(
@@ -168,7 +192,20 @@ class _DetectorImagesPitchesPageState extends State<DetectorImagesPitchesPage> {
                 ..._inputFiles.map(
                   (f) => Padding(
                     padding: const EdgeInsets.symmetric(vertical: 4),
-                    child: ImageItem(image: f, result: _lastResult?.getResult(f), preview: _preview),
+                    child: ImageItem(
+                      image: f,
+                      result: _lastResult?.getResult(f),
+                      preview: _preview,
+                      tools: Row(
+                        children: [
+                          IconButton(
+                            onPressed: () => _onSetGridLines(f),
+                            tooltip: '使用此圖片的 Grid Lines',
+                            icon: Icon(Icons.menu, color: Colors.white),
+                          ),
+                        ],
+                      ),
+                    ),
                   ),
                 ),
               ],
@@ -213,14 +250,23 @@ class _ProcessResult {
   }
 }
 
-class ImageItem extends StatelessWidget {
-  const ImageItem({super.key, required this.image, this.result, this.preview = true});
+class ImageItem extends StatefulWidget {
+  const ImageItem({super.key, required this.image, this.result, this.preview = true, this.tools});
 
   final File image;
 
   final ImageResult? result;
 
   final bool preview;
+
+  final Widget? tools;
+
+  @override
+  State<ImageItem> createState() => _ImageItemState();
+}
+
+class _ImageItemState extends State<ImageItem> {
+  var _isHover = false;
 
   @override
   Widget build(BuildContext context) {
@@ -229,14 +275,36 @@ class ImageItem extends StatelessWidget {
         Opacity(
           opacity: 0.5,
           // opacity: 1,
-          child: Image.file(File(image.path), fit: BoxFit.fitWidth),
+          child: Image.file(File(widget.image.path), fit: BoxFit.fitWidth),
         ),
         Positioned.fill(
           child: CustomPaint(
-            painter: result == null || !preview ? null : ImageItemPainter(result!),
+            painter: widget.result == null || !widget.preview ? null : ImageItemPainter(widget.result!),
             child: SizedBox.expand(),
           ),
         ),
+        if (widget.tools != null)
+          Positioned(
+            bottom: 8,
+            right: 8,
+            child: MouseRegion(
+              onEnter: (_) {
+                setState(() => _isHover = true);
+              },
+              onExit: (_) {
+                setState(() => _isHover = false);
+              },
+              child: AnimatedOpacity(
+                opacity: _isHover ? 1 : 0,
+                duration: const Duration(milliseconds: 200),
+                child: Container(
+                  padding: const EdgeInsets.all(4),
+                  decoration: BoxDecoration(color: Colors.black54, borderRadius: BorderRadius.circular(8)),
+                  child: widget.tools!,
+                ),
+              ),
+            ),
+          ),
       ],
     );
   }
