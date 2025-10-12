@@ -63,6 +63,24 @@ class ImageResult {
     'lineSpacingPx': lineSpacingPx,
     'bars': bars.map((e) => e.toJson()).toList(),
   };
+
+  ImageResult copyWith({
+    String? file,
+    int? width,
+    int? height,
+    List<int>? gridLinesY,
+    double? lineSpacingPx,
+    List<DetectedBar>? bars,
+  }) {
+    return ImageResult(
+      file: file ?? this.file,
+      width: width ?? this.width,
+      height: height ?? this.height,
+      gridLinesY: gridLinesY ?? this.gridLinesY,
+      lineSpacingPx: lineSpacingPx ?? this.lineSpacingPx,
+      bars: bars ?? this.bars,
+    );
+  }
 }
 
 // ===== 核心流程 =====
@@ -120,7 +138,7 @@ Future<ImageResult> processImage(String fileName, img.Image image, {List<int>? g
 
     final yUnits = (yBottom - yc) / spacing; // 由下往上；可負
     final yNorm = _clamp(yUnits / 9.0, 0, 1);
-    final resolvedH = (y1 - y0 + 1) / h;
+    final resolvedH = ((y1 - y0 + 1) / h).clamp(0.065, 0.070);
 
     bars.add(
       DetectedBar(xCenter: xcn, x0: x0n, x1: x1n, yUnits: yUnits, yNorm: yNorm, w: (x1 - x0 + 1) / w, h: resolvedH),

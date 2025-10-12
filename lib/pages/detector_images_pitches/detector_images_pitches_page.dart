@@ -4,6 +4,7 @@ import 'dart:math' as math;
 
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_desktop_video_capturer/models/capture_meta_file.dart';
 import 'package:flutter_desktop_video_capturer/utilities/shared_preference.dart';
 import 'package:image/image.dart' as img;
@@ -223,10 +224,12 @@ class _DetectorImagesPitchesPageState extends State<DetectorImagesPitchesPage> {
                   runSpacing: 12,
                   children: [
                     FilledButton.icon(
-                      onPressed: _gridLinesY.isEmpty ? null : () async {
-                        setState(() => _gridLinesY = []);
-                        _run();
-                      },
+                      onPressed: _gridLinesY.isEmpty
+                          ? null
+                          : () async {
+                              setState(() => _gridLinesY = []);
+                              _run();
+                            },
                       icon: const Icon(Icons.clear),
                       label: const Text('清空'),
                     ),
@@ -300,6 +303,8 @@ class _ProcessResult {
   }
 }
 
+enum _DragMode { move, resizeLeft, resizeRight }
+
 class ImageItem extends StatefulWidget {
   const ImageItem({super.key, required this.image, this.result, this.preview = true, this.tools});
 
@@ -316,6 +321,72 @@ class ImageItem extends StatefulWidget {
 }
 
 class _ImageItemState extends State<ImageItem> {
+  List<DetectedBar> _bars = [];
+  int? _sel;
+  _DragMode? _mode;
+  Offset? _dragStartCanvas;
+  DetectedBar? _startBar;
+
+  @override
+  void initState() {
+    super.initState();
+    _bars = List<DetectedBar>.from(widget.result?.bars ?? const []);
+  }
+
+  ({double scale, double dx, double dy}) _tf(Size paintSize) {
+    final imgW = (widget.result?.width ?? 1).toDouble();
+    final imgH = (widget.result?.height ?? 1).toDouble();
+    final scale = math.min(paintSize.width / imgW, paintSize.height / imgH);
+    final dx = (paintSize.width - imgW * scale) / 2.0;
+    final dy = (paintSize.height - imgH * scale) / 2.0;
+    return (scale: scale, dx: dx, dy: dy);
+  }
+
+  Offset _canvasToImage(Offset p, Size paintSize) {
+    final t = _tf(paintSize);
+    return Offset((p.dx - t.dx) / t.scale, (p.dy - t.dy) / t.scale);
+  }
+
+  Offset _imageToCanvas(Offset p, Size paintSize) {
+    final t = _tf(paintSize);
+    return Offset(p.dx * t.scale + t.dx, p.dy * t.scale + t.dy);
+  }
+
+  int? _hitTestBar(Offset imgPt, {double tolPx = 6}) {
+    final imgW = (widget.result?.width ?? 1).toDouble();
+    final imgH = (widget.result?.height ?? 1).toDouble();
+    if (widget.result == null) return null;
+
+    // 取格線基準
+    final yBottom = widget.result!.gridLinesY.isNotEmpty ? widget.result!.gridLinesY.last.toDouble() : (imgH - 1.0);
+    final spacing = widget.result!.lineSpacingPx;
+
+    for (int i = 0; i < _bars.length; i++) {
+      final b = _bars[i];
+      final x0 = b.x0 * imgW, x1 = b.x1 * imgW;
+      final yc = yBottom - b.yUnits * spacing;
+      final hpx = b.h * imgH;
+      final rect = Rect.fromLTRB(x0, yc - hpx / 2, x1, yc + hpx / 2).inflate(tolPx);
+      if (rect.contains(imgPt)) return i;
+    }
+    return null;
+  }
+
+  _DragMode? _hitWhichHandle(Offset imgPt, int idx, {double tolPx = 8}) {
+    final imgW = (widget.result?.width ?? 1).toDouble();
+    final imgH = (widget.result?.height ?? 1).toDouble();
+    final yBottom = widget.result!.gridLinesY.isNotEmpty ? widget.result!.gridLinesY.last.toDouble() : (imgH - 1.0);
+    final spacing = widget.result!.lineSpacingPx;
+
+    final b = _bars[idx];
+    final x0 = b.x0 * imgW, x1 = b.x1 * imgW;
+    final yc = yBottom - b.yUnits * spacing;
+
+    if ((imgPt - Offset(x0, yc)).distance <= tolPx) return _DragMode.resizeLeft;
+    if ((imgPt - Offset(x1, yc)).distance <= tolPx) return _DragMode.resizeRight;
+    return _DragMode.move;
+  }
+
   @override
   Widget build(BuildContext context) {
     return Column(
@@ -329,9 +400,117 @@ class _ImageItemState extends State<ImageItem> {
               child: Image.file(File(widget.image.path), fit: BoxFit.fitWidth),
             ),
             Positioned.fill(
-              child: CustomPaint(
-                painter: widget.result == null || !widget.preview ? null : ImageItemPainter(widget.result!),
-                child: SizedBox.expand(),
+              child: LayoutBuilder(
+                builder: (ctx, constraints) {
+                  final paintSize = Size(constraints.maxWidth, constraints.maxHeight);
+                  return Focus(
+                    autofocus: true,
+                    onKeyEvent: (node, evt) {
+                      if (_sel != null && evt is KeyDownEvent && evt.logicalKey == LogicalKeyboardKey.delete) {
+                        setState(() {
+                          _bars.removeAt(_sel!);
+                          _sel = null;
+                        });
+                        return KeyEventResult.handled;
+                      }
+                      return KeyEventResult.ignored;
+                    },
+                    child: GestureDetector(
+                      onTapDown: (e) {
+                        if (widget.result == null) return;
+                        final imgPt = _canvasToImage(e.localPosition, paintSize);
+                        final idx = _hitTestBar(imgPt);
+                        setState(() => _sel = idx);
+                      },
+                      onSecondaryTapDown: (e) {
+                        if (_sel != null) {
+                          setState(() {
+                            _bars.removeAt(_sel!);
+                            _sel = null;
+                          });
+                        }
+                      },
+                      onPanStart: (e) {
+                        if (widget.result == null) return;
+                        final imgPt = _canvasToImage(e.localPosition, paintSize);
+                        final idx = _hitTestBar(imgPt);
+                        if (idx == null) return;
+                        _sel = idx;
+                        _mode = _hitWhichHandle(imgPt, idx);
+                        _dragStartCanvas = e.localPosition;
+                        _startBar = _bars[idx];
+                        setState(() {});
+                      },
+                      onPanUpdate: (e) {
+                        if (widget.result == null || _sel == null || _mode == null || _startBar == null) return;
+                        final t = _tf(paintSize);
+                        final dxImg = e.delta.dx / t.scale;
+                        final dyImg = e.delta.dy / t.scale;
+
+                        final imgW = widget.result!.width.toDouble();
+                        final imgH = widget.result!.height.toDouble();
+                        final yBottom = widget.result!.gridLinesY.isNotEmpty
+                            ? widget.result!.gridLinesY.last.toDouble()
+                            : (imgH - 1.0);
+                        final spacing = widget.result!.lineSpacingPx;
+
+                        var b = _bars[_sel!];
+                        if (_mode == _DragMode.move) {
+                          // 平移：x0/x1 整體移動，yUnits 依 dy 換算
+                          final dxn = dxImg / imgW;
+                          final newX0 = (b.x0 + dxn).clamp(0.0, 1.0);
+                          final newX1 = (b.x1 + dxn).clamp(0.0, 1.0);
+                          final newYUnits = b.yUnits - (dyImg / spacing);
+                          _bars[_sel!] = DetectedBar(
+                            xCenter: ((newX0 + newX1) / 2).clamp(0.0, 1.0),
+                            x0: newX0,
+                            x1: newX1,
+                            yUnits: newYUnits,
+                            yNorm: (newYUnits / 9).clamp(0.0, 1.0),
+                            w: newX1 - newX0,
+                            h: b.h,
+                          );
+                        } else if (_mode == _DragMode.resizeLeft) {
+                          final dxn = dxImg / imgW;
+                          final newX0 = (b.x0 + dxn).clamp(0.0, b.x1 - 0.001);
+                          _bars[_sel!] = DetectedBar(
+                            xCenter: ((newX0 + b.x1) / 2),
+                            x0: newX0,
+                            x1: b.x1,
+                            yUnits: b.yUnits,
+                            yNorm: b.yNorm,
+                            w: (b.x1 - newX0),
+                            h: b.h,
+                          );
+                        } else if (_mode == _DragMode.resizeRight) {
+                          final dxn = dxImg / imgW;
+                          final newX1 = (b.x1 + dxn).clamp(b.x0 + 0.001, 1.0);
+                          _bars[_sel!] = DetectedBar(
+                            xCenter: ((b.x0 + newX1) / 2),
+                            x0: b.x0,
+                            x1: newX1,
+                            yUnits: b.yUnits,
+                            yNorm: b.yNorm,
+                            w: (newX1 - b.x0),
+                            h: b.h,
+                          );
+                        }
+                        setState(() {});
+                      },
+                      onPanEnd: (_) {
+                        _mode = null;
+                        _dragStartCanvas = null;
+                        _startBar = null;
+                      },
+                      child: CustomPaint(
+                        painter: widget.result == null || !widget.preview
+                            ? null
+                            : ImageItemPainter(widget.result!, selectedIndex: _sel, barsOverride: _bars),
+                        child: const SizedBox.expand(),
+                      ),
+                    ),
+                  );
+                },
               ),
             ),
           ],
@@ -348,9 +527,11 @@ class _ImageItemState extends State<ImageItem> {
 }
 
 class ImageItemPainter extends CustomPainter {
-  ImageItemPainter(this.result);
+  ImageItemPainter(this.result, {this.selectedIndex, this.barsOverride});
 
   final ImageResult result;
+  final int? selectedIndex; // 新增：目前選取哪個 bar
+  final List<DetectedBar>? barsOverride; // 新增：可用外部 bar 覆寫
 
   @override
   void paint(Canvas canvas, Size size) {
@@ -400,8 +581,11 @@ class ImageItemPainter extends CustomPainter {
 
     // 文字（標記 y_units）
     final textStyle = const TextStyle(color: Color(0xFF2E8BFF), fontSize: 12);
+    final bars = barsOverride ?? result.bars;
 
-    for (final b in result.bars) {
+    for (int i = 0; i < bars.length; i++) {
+      final b = bars[i];
+
       // x0/x1 已是 0..1；換成像素
       final x0 = (b.x0 * imgW);
       final x1 = (b.x1 * imgW);
@@ -427,6 +611,16 @@ class ImageItemPainter extends CustomPainter {
         textDirection: TextDirection.ltr,
       )..layout();
       tp.paint(canvas, Offset(x0, y0 - 14 / scale));
+
+      // 把手
+      if (selectedIndex == i) {
+        final handlePaint = Paint()
+          ..style = PaintingStyle.fill
+          ..color = const Color(0xFFFFFFFF);
+        final edgeRadius = 5 / scale; // 視覺 5px
+        canvas.drawCircle(Offset(x0, yc), edgeRadius, handlePaint);
+        canvas.drawCircle(Offset(x1, yc), edgeRadius, handlePaint);
+      }
     }
 
     canvas.restore();
