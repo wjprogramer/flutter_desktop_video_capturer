@@ -401,7 +401,8 @@ class _HomePageState extends State<HomePage> {
         final sortedFiles = files.toList()
           ..sort((a, b) => a.path.compareTo(b.path));
         for (final f in sortedFiles) {
-          final newName = 'f_${imageIndex.toString()}${p.extension(f.path)}';
+          // padLeft(4, '0') => 避免後面排序有問題
+          final newName = 'f_${imageIndex.toString().padLeft(4, '0')}${p.extension(f.path)}';
           final newPath = p.join(segDir.path, newName);
           f.renameSync(newPath);
           imageIndex++;
