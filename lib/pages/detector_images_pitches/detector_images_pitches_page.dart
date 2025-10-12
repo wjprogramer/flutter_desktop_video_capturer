@@ -137,6 +137,23 @@ class _DetectorImagesPitchesPageState extends State<DetectorImagesPitchesPage> {
     });
   }
 
+  void _onDelete(File f, int barIndex) {
+    final result = _lastResult?.getResult(f);
+    if (result == null) {
+      return;
+    }
+    final resultIndex = _lastResult?.getImageResultIndex(f);
+    if (resultIndex == null) {
+      return;
+    }
+    final newBars = List<DetectedBar>.from(result.bars)..removeAt(barIndex);
+    final newResult = result.copyWith(bars: newBars);
+    final newImages = List<ImageResult>.from(_lastResult!.images)..[resultIndex] = newResult;
+    setState(() {
+      _lastResult = _lastResult?.copyWith(images: newImages);
+    });
+  }
+
   List<Widget> _buildItems() {
     return _inputFiles
         .map(
@@ -146,6 +163,7 @@ class _DetectorImagesPitchesPageState extends State<DetectorImagesPitchesPage> {
               image: f,
               result: _lastResult?.getResult(f),
               preview: _preview,
+              onDelete: (barIndex) => _onDelete(f, barIndex),
               tools: Row(
                 mainAxisAlignment: MainAxisAlignment.end,
                 children: [
@@ -164,6 +182,15 @@ class _DetectorImagesPitchesPageState extends State<DetectorImagesPitchesPage> {
                     },
                     tooltip: '除錯用 (Console)',
                     icon: Icon(Icons.bug_report_outlined, color: Colors.white),
+                  ),
+                  IconButton(
+                    onPressed: () {
+                      final result = _lastResult?.getResult(f);
+                      if (result == null || result.bars.isEmpty) return;
+                      _onDelete(f, result.bars.length - 1);
+                    },
+                    tooltip: '',
+                    icon: Icon(Icons.remove_circle_outline, color: Colors.white),
                   ),
                 ],
               ),
@@ -301,12 +328,24 @@ class _ProcessResult {
       return null;
     }
   }
+
+  _ProcessResult copyWith({List<ImageResult>? images}) {
+    return _ProcessResult(images: images ?? this.images);
+  }
+
+  int? getImageResultIndex(File file) {
+    try {
+      return images.indexWhere((e) => e.file == p.basename(file.path));
+    } catch (e) {
+      return null;
+    }
+  }
 }
 
 enum _DragMode { move, resizeLeft, resizeRight }
 
 class ImageItem extends StatefulWidget {
-  const ImageItem({super.key, required this.image, this.result, this.preview = true, this.tools});
+  const ImageItem({super.key, required this.image, this.result, this.preview = true, this.tools, this.onDelete});
 
   final File image;
 
@@ -316,13 +355,16 @@ class ImageItem extends StatefulWidget {
 
   final Widget? tools;
 
+  final void Function(int barIndex)? onDelete;
+
   @override
   State<ImageItem> createState() => _ImageItemState();
 }
 
 class _ImageItemState extends State<ImageItem> {
-  List<DetectedBar> _bars = [];
+  List<DetectedBar> get _bars => widget.result?.bars ?? const [];
   int? _sel;
+
   _DragMode? _mode;
   Offset? _dragStartCanvas;
   DetectedBar? _startBar;
@@ -330,7 +372,6 @@ class _ImageItemState extends State<ImageItem> {
   @override
   void initState() {
     super.initState();
-    _bars = List<DetectedBar>.from(widget.result?.bars ?? const []);
   }
 
   ({double scale, double dx, double dy}) _tf(Size paintSize) {
@@ -404,13 +445,14 @@ class _ImageItemState extends State<ImageItem> {
                 builder: (ctx, constraints) {
                   final paintSize = Size(constraints.maxWidth, constraints.maxHeight);
                   return Focus(
-                    autofocus: true,
+                    autofocus: false,
                     onKeyEvent: (node, evt) {
-                      if (_sel != null && evt is KeyDownEvent && evt.logicalKey == LogicalKeyboardKey.delete) {
-                        setState(() {
-                          _bars.removeAt(_sel!);
-                          _sel = null;
-                        });
+                      if (_sel != null &&
+                          evt is KeyDownEvent &&
+                          evt.logicalKey.keyId == LogicalKeyboardKey.delete.keyId) {
+                        widget.onDelete?.call(_sel!);
+                        _sel = null;
+                        setState(() {});
                         return KeyEventResult.handled;
                       }
                       return KeyEventResult.ignored;
@@ -425,7 +467,7 @@ class _ImageItemState extends State<ImageItem> {
                       onSecondaryTapDown: (e) {
                         if (_sel != null) {
                           setState(() {
-                            _bars.removeAt(_sel!);
+                            widget.onDelete?.call(_sel!);
                             _sel = null;
                           });
                         }
