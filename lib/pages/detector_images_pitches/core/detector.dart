@@ -289,24 +289,31 @@ List<int> _detectGridLines(img.Image im) {
   }
   // 峰值
   final peaks = <int>[];
-  final minDist = (h / 20).floor();
-  final thr = _percentile(sm, 0.92);
-  for (int y = 1; y < h - 1; y++) {
-    if (sm[y] > thr && sm[y] >= sm[y - 1] && sm[y] >= sm[y + 1]) {
-      if (peaks.isNotEmpty && (y - peaks.last) < minDist) {
-        if (sm[y] > sm[peaks.last]) peaks[peaks.length - 1] = y;
-      } else {
-        peaks.add(y);
+  final minDist = (h / 20).floor(); // 放寬間距
+  final thr = _percentile(sm, 0.75); // 降低門檻，提高容忍度
+  for (int y = 2; y < h - 2; y++) {
+    final v = sm[y];
+    final isPeak = v > thr && v >= sm[y - 1] && v >= sm[y + 1];
+    if (!isPeak) continue;
+
+    // 避免重複太近的峰；保留能量更大的
+    if (peaks.isNotEmpty && (y - peaks.last).abs() < minDist) {
+      final last = peaks.last;
+      if (sm[y] > sm[last]) {
+        peaks[peaks.length - 1] = y;
       }
+    } else {
+      peaks.add(y);
     }
   }
+
   peaks.sort();
   if (peaks.length != 10) {
-    // 等距回歸近似補齊/裁切
+    // 等距回歸補齊/裁切
     final a = peaks.isNotEmpty ? peaks.first.toDouble() : h * 0.15;
     final b = peaks.length > 1 ? (peaks.last - a) / math.max(1, (peaks.length - 1)) : h / 12.0;
-    final approx = [for (int k = 0; k < 10; k++) (a + b * k).round()];
-    return approx.map((e) => e.clamp(0, h - 1)).toList();
+    final approx = [for (int k = 0; k < 10; k++) (a + b * k).round().clamp(0, h - 1)];
+    return approx;
   }
   return peaks;
 }
