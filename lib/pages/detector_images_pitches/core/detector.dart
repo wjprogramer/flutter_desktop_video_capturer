@@ -71,6 +71,10 @@ Future<ImageResult> processImage(String fileName, img.Image image, {
 }) async {
   final w = image.width, h = image.height;
   final mask = _blueMask(image); // 1) 藍色遮罩 + 形態學
+
+  // 在跑 BFS 之前，先移除垂直導引線
+  _suppressVerticalGuideBand(mask, w, h);
+
   final boxes =
       _connectedComponents(mask, w, h) // 2) 連通元件 -> bbox 過濾
           .where((b) {
@@ -138,7 +142,48 @@ List<int> _blueMask(img.Image im) {
       mask[y * w + x] = isBlue ? 1 : 0;
     }
   }
-  return _morphClose(mask, w, h, 3);
+  // 水平向的閉運算（只沿 X 方向連接），rx 可調 2~4
+  return _morphCloseH(mask, w, h, rx: 3);
+}
+
+// ===== 水平形態學（只沿 X 方向）=====
+List<int> _morphCloseH(List<int> mask, int w, int h, {int rx = 3}) {
+  final dil = _morphDilateH(mask, w, h, rx: rx);
+  return _morphErodeH(dil, w, h, rx: rx);
+}
+
+List<int> _morphDilateH(List<int> mask, int w, int h, {int rx = 3}) {
+  final out = List<int>.from(mask);
+  for (int y = 0; y < h; y++) {
+    final rowOff = y * w;
+    for (int x = 0; x < w; x++) {
+      int v = 0;
+      for (int dx = -rx; dx <= rx; dx++) {
+        final nx = x + dx;
+        if (nx < 0 || nx >= w) continue;
+        if (mask[rowOff + nx] != 0) { v = 1; break; }
+      }
+      out[rowOff + x] = v;
+    }
+  }
+  return out;
+}
+
+List<int> _morphErodeH(List<int> mask, int w, int h, {int rx = 3}) {
+  final out = List<int>.from(mask);
+  for (int y = 0; y < h; y++) {
+    final rowOff = y * w;
+    for (int x = 0; x < w; x++) {
+      int v = 1;
+      for (int dx = -rx; dx <= rx; dx++) {
+        final nx = x + dx;
+        if (nx < 0 || nx >= w) continue;
+        if (mask[rowOff + nx] == 0) { v = 0; break; }
+      }
+      out[rowOff + x] = v;
+    }
+  }
+  return out;
 }
 
 List<int> _morphClose(List<int> mask, int w, int h, int k) {
@@ -244,6 +289,18 @@ List<List<int>> _connectedComponents(List<int> mask, int w, int h) {
           }
         }
       }
+
+      final bw = (maxx - minx + 1);
+      final bh = (maxy - miny + 1);
+      final vertRatio = bh / (bw.toDouble() + 1e-6);
+
+      // 垂直又很高、而且很窄（寬度 <= 3% 畫面、且高度 >= 60% 畫面）→ 視為導引線或其碎片，捨棄
+      final isTallThinVertical = vertRatio > 6.0 && bw <= (0.03 * w) && bh >= (0.60 * h);
+      if (isTallThinVertical) {
+        label++;
+        continue; // 不加入 boxes
+      }
+
       boxes.add([minx, miny, maxx, maxy, cnt]);
       label++;
     }
@@ -487,3 +544,56 @@ int _lowerBound(List<int> a, int x) {
   }
   return lo;
 }
+
+void _suppressVerticalGuideBand(List<int> mask, int w, int h) {
+  // 先算每一欄的啟用像素數
+  final colSum = List<int>.filled(w, 0);
+  for (int y = 0; y < h; y++) {
+    final off = y * w;
+    for (int x = 0; x < w; x++) {
+      if (mask[off + x] != 0) colSum[x]++;
+    }
+  }
+
+  // 找出一段「高且連續」的窄帶（導引線），高度至少覆蓋 60% 以上
+  final tall = (0.60 * h).round();
+  int bestL = -1, bestR = -1, bestScore = -1;
+  int curL = -1;
+  for (int x = 0; x < w; x++) {
+    final ok = colSum[x] >= tall;
+    if (ok) {
+      curL = (curL == -1) ? x : curL;
+    } else if (curL != -1) {
+      final curR = x - 1;
+      final width = curR - curL + 1;
+      // 寬度限制避免把整片藍區當導引線（這裡允許到 3% 寬）
+      if (width <= (0.03 * w)) {
+        int score = 0;
+        for (int i = curL; i <= curR; i++) score += colSum[i];
+        if (score > bestScore) { bestScore = score; bestL = curL; bestR = curR; }
+      }
+      curL = -1;
+    }
+  }
+  if (curL != -1) {
+    final curR = w - 1;
+    final width = curR - curL + 1;
+    if (width <= (0.03 * w)) {
+      int score = 0;
+      for (int i = curL; i <= curR; i++) score += colSum[i];
+      if (score > bestScore) { bestScore = score; bestL = curL; bestR = curR; }
+    }
+  }
+
+  if (bestL != -1) {
+    // 以導引線為中心，左右再各留一點緩衝，整帶清 0
+    final pad = (0.015 * w).round().clamp(2, 12);
+    final L = (bestL - pad).clamp(0, w - 1);
+    final R = (bestR + pad).clamp(0, w - 1);
+    for (int y = 0; y < h; y++) {
+      final off = y * w;
+      for (int x = L; x <= R; x++) mask[off + x] = 0;
+    }
+  }
+}
+
