@@ -1,14 +1,16 @@
 import 'dart:math' as math;
+
 import 'package:image/image.dart' as img;
 
 class DetectedBar {
   final double xCenter; // 0..1
-  final double x0;      // 0..1
-  final double x1;      // 0..1
-  final double yUnits;  // 以灰線間距為 1，由下往上；可為負
-  final double yNorm;   // 投影到 0..1（夾在 0..1）
+  final double x0; // 0..1
+  final double x1; // 0..1
+  final double yUnits; // 以灰線間距為 1，由下往上；可為負
+  final double yNorm; // 投影到 0..1（夾在 0..1）
   final double w;
   final double h;
+
   DetectedBar({
     required this.xCenter,
     required this.x0,
@@ -18,6 +20,7 @@ class DetectedBar {
     required this.w,
     required this.h,
   });
+
   Map<String, dynamic> toJson() => {
     'x_center': xCenter,
     'x0': x0,
@@ -30,12 +33,6 @@ class DetectedBar {
 }
 
 class ImageResult {
-  final String file;
-  final int width;
-  final int height;
-  final List<int> gridLinesY; // 上->下 10 條灰線的 y（像素）
-  final double lineSpacingPx;
-  final List<DetectedBar> bars;
   ImageResult({
     required this.file,
     required this.width,
@@ -44,6 +41,20 @@ class ImageResult {
     required this.lineSpacingPx,
     required this.bars,
   });
+
+  final String file;
+
+  /// 圖片的寬度
+  final int width;
+
+  /// 圖片的高度
+  final int height;
+
+  /// 上->下 10 條灰線的 y（像素）
+  final List<int> gridLinesY;
+  final double lineSpacingPx;
+  final List<DetectedBar> bars;
+
   Map<String, dynamic> toJson() => {
     'file': file,
     'width': width,
@@ -57,17 +68,18 @@ class ImageResult {
 // ===== 核心流程 =====
 Future<ImageResult> processImage(String fileName, img.Image image) async {
   final w = image.width, h = image.height;
-  final mask = _blueMask(image);                 // 1) 藍色遮罩 + 形態學
-  final boxes = _connectedComponents(mask, w, h) // 2) 連通元件 -> bbox 過濾
-      .where((b) {
-    final bw = (b[2] - b[0] + 1).toDouble();
-    final bh = (b[3] - b[1] + 1).toDouble();
-    final ar = bw / math.max(1, bh);
-    return bw > 10 && bh > 2 && ar > 3; // 長橫條 + 去雜訊
-  })
-      .toList();
+  final mask = _blueMask(image); // 1) 藍色遮罩 + 形態學
+  final boxes =
+      _connectedComponents(mask, w, h) // 2) 連通元件 -> bbox 過濾
+          .where((b) {
+            final bw = (b[2] - b[0] + 1).toDouble();
+            final bh = (b[3] - b[1] + 1).toDouble();
+            final ar = bw / math.max(1, bh);
+            return bw > 10 && bh > 2 && ar > 3; // 長橫條 + 去雜訊
+          })
+          .toList();
 
-  final linesY = _detectGridLines(image);        // 3) 找 10 條灰線（不足補齊）
+  final linesY = _detectGridLines(image); // 3) 找 10 條灰線（不足補齊）
   linesY.sort();
   final spacings = [for (var i = 1; i < linesY.length; i++) linesY[i] - linesY[i - 1]];
   final spacing = spacings.isEmpty ? h / 10.0 : spacings.reduce((a, b) => a + b) / spacings.length;
@@ -89,27 +101,22 @@ Future<ImageResult> processImage(String fileName, img.Image image) async {
     final yUnits = (yBottom - yc) / spacing; // 由下往上；可負
     final yNorm = _clamp(yUnits / 9.0, 0, 1);
 
-    bars.add(DetectedBar(
-      xCenter: xcn,
-      x0: x0n,
-      x1: x1n,
-      yUnits: yUnits,
-      yNorm: yNorm,
-      w: (x1 - x0 + 1) / w,
-      h: (y1 - y0 + 1) / h,
-    ));
+    bars.add(
+      DetectedBar(
+        xCenter: xcn,
+        x0: x0n,
+        x1: x1n,
+        yUnits: yUnits,
+        yNorm: yNorm,
+        w: (x1 - x0 + 1) / w,
+        h: (y1 - y0 + 1) / h,
+      ),
+    );
   }
 
   bars.sort((a, b) => a.xCenter.compareTo(b.xCenter));
 
-  return ImageResult(
-    file: fileName,
-    width: w,
-    height: h,
-    gridLinesY: linesY,
-    lineSpacingPx: spacing,
-    bars: bars,
-  );
+  return ImageResult(file: fileName, width: w, height: h, gridLinesY: linesY, lineSpacingPx: spacing, bars: bars);
 }
 
 // ====== 1) 藍色遮罩（HSV）+ 形態學閉運算 ======
@@ -142,10 +149,15 @@ List<int> _dilate(List<int> mask, int w, int h, int k) {
     for (int x = 0; x < w; x++) {
       var on = 0;
       for (int dy = -r; dy <= r && on == 0; dy++) {
-        final yy = y + dy; if (yy < 0 || yy >= h) continue;
+        final yy = y + dy;
+        if (yy < 0 || yy >= h) continue;
         for (int dx = -r; dx <= r; dx++) {
-          final xx = x + dx; if (xx < 0 || xx >= w) continue;
-          if (mask[yy * w + xx] != 0) { on = 1; break; }
+          final xx = x + dx;
+          if (xx < 0 || xx >= w) continue;
+          if (mask[yy * w + xx] != 0) {
+            on = 1;
+            break;
+          }
         }
       }
       out[y * w + x] = on;
@@ -161,10 +173,21 @@ List<int> _erode(List<int> mask, int w, int h, int k) {
     for (int x = 0; x < w; x++) {
       var ok = 1;
       for (int dy = -r; dy <= r && ok == 1; dy++) {
-        final yy = y + dy; if (yy < 0 || yy >= h) { ok = 0; break; }
+        final yy = y + dy;
+        if (yy < 0 || yy >= h) {
+          ok = 0;
+          break;
+        }
         for (int dx = -r; dx <= r; dx++) {
-          final xx = x + dx; if (xx < 0 || xx >= w) { ok = 0; break; }
-          if (mask[yy * w + xx] == 0) { ok = 0; break; }
+          final xx = x + dx;
+          if (xx < 0 || xx >= w) {
+            ok = 0;
+            break;
+          }
+          if (mask[yy * w + xx] == 0) {
+            ok = 0;
+            break;
+          }
         }
       }
       out[y * w + x] = ok;
@@ -186,15 +209,21 @@ List<List<int>> _connectedComponents(List<int> mask, int w, int h) {
       final i = y * w + x;
       if (mask[i] == 0 || labels[i] != -1) continue;
       int head = 0, tail = 0;
-      qx[tail] = x; qy[tail] = y; tail++;
+      qx[tail] = x;
+      qy[tail] = y;
+      tail++;
       labels[i] = label;
       int minx = x, miny = y, maxx = x, maxy = y, cnt = 0;
 
       while (head < tail) {
-        final cx = qx[head], cy = qy[head]; head++;
+        final cx = qx[head], cy = qy[head];
+        head++;
         cnt++;
         const dirs = [
-          [1,0],[-1,0],[0,1],[0,-1]
+          [1, 0],
+          [-1, 0],
+          [0, 1],
+          [0, -1],
         ];
         for (final d in dirs) {
           final nx = cx + d[0], ny = cy + d[1];
@@ -202,9 +231,13 @@ List<List<int>> _connectedComponents(List<int> mask, int w, int h) {
           final ni = ny * w + nx;
           if (mask[ni] != 0 && labels[ni] == -1) {
             labels[ni] = label;
-            qx[tail] = nx; qy[tail] = ny; tail++;
-            if (nx < minx) minx = nx; if (ny < miny) miny = ny;
-            if (nx > maxx) maxx = nx; if (ny > maxy) maxy = ny;
+            qx[tail] = nx;
+            qy[tail] = ny;
+            tail++;
+            if (nx < minx) minx = nx;
+            if (ny < miny) miny = ny;
+            if (nx > maxx) maxx = nx;
+            if (ny > maxy) maxy = ny;
           }
         }
       }
@@ -244,10 +277,13 @@ List<int> _detectGridLines(img.Image im) {
   final sm = List<double>.filled(h, 0);
   const k = 5;
   for (int y = 0; y < h; y++) {
-    double s = 0; int c = 0;
+    double s = 0;
+    int c = 0;
     for (int t = -k; t <= k; t++) {
-      final yy = y + t; if (yy < 0 || yy >= h) continue;
-      s += rowEnergy[yy]; c++;
+      final yy = y + t;
+      if (yy < 0 || yy >= h) continue;
+      s += rowEnergy[yy];
+      c++;
     }
     sm[y] = s / (c == 0 ? 1 : c);
   }
@@ -277,7 +313,9 @@ List<int> _detectGridLines(img.Image im) {
 
 // ====== 小工具 ======
 List<double> _rgbToHsv(double r, double g, double b) {
-  r /= 255; g /= 255; b /= 255;
+  r /= 255;
+  g /= 255;
+  b /= 255;
   final maxv = [r, g, b].reduce(math.max);
   final minv = [r, g, b].reduce(math.min);
   final d = maxv - minv;
@@ -293,7 +331,7 @@ List<double> _rgbToHsv(double r, double g, double b) {
     h *= 60; // 0..360
   }
   final s = maxv == 0 ? 0.0 : d / maxv; // 0..1
-  final v = maxv;                      // 0..1
+  final v = maxv; // 0..1
   return [h, s, v];
 }
 
