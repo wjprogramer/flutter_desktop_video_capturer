@@ -97,7 +97,9 @@ Future<ImageResult> processImage(String fileName, img.Image image, {List<int>? g
           })
           .toList();
 
-  final linesY = gridLinesYOverride ?? _detectGridLines(image); // 3) 找 10 條灰線（不足補齊）
+  final List<int> linesY = (gridLinesYOverride ?? []).isNotEmpty
+      ? (gridLinesYOverride ?? [])
+      : _detectGridLines(image); // 3) 找 10 條灰線（不足補齊）
   linesY.sort();
   final spacings = [for (var i = 1; i < linesY.length; i++) linesY[i] - linesY[i - 1]];
   final spacing = spacings.isEmpty ? h / 10.0 : spacings.reduce((a, b) => a + b) / spacings.length;

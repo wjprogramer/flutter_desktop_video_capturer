@@ -467,7 +467,7 @@ class _HomePageState extends State<HomePage> {
 
     final metaFile = File(p.join(projectDir.path, "meta.json"));
     // await metaFile.writeAsString(jsonEncode(meta));
-    await metaFile.writeAsString(const JsonEncoder.withIndent(' ').convert(meta));
+    await metaFile.writeAsString(const JsonEncoder.withIndent(' ').convert(meta.toJson()));
     // print("Meta saved: ${metaFile.path}");
     _addLog("Meta saved: ${metaFile.path}");
     if (context.mounted) {

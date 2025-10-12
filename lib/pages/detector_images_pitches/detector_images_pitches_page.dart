@@ -4,6 +4,7 @@ import 'dart:math' as math;
 
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter_desktop_video_capturer/models/capture_meta_file.dart';
 import 'package:image/image.dart' as img;
 import 'package:path/path.dart' as p;
 
@@ -24,6 +25,7 @@ class _DetectorImagesPitchesPageState extends State<DetectorImagesPitchesPage> {
   _ProcessResult? _lastResult;
   List<File> _inputFiles = [];
   List<int> _gridLinesY = [];
+  CaptureMetaFile? _metaFile;
 
   /// 是否要預覽圖片
   bool _preview = true;
@@ -31,13 +33,28 @@ class _DetectorImagesPitchesPageState extends State<DetectorImagesPitchesPage> {
   void _append(String s) => setState(() => log += '$s\n');
 
   Future<void> _pickFolder() async {
-    final inputDir = await FilePicker.platform.getDirectoryPath();
-    if (inputDir == null) return;
+    try {
+      final inputDir = await FilePicker.platform.getDirectoryPath();
+      if (inputDir == null) return;
 
-    _inputFiles = _getImageFiles(inputDir);
-    _inputDir = inputDir;
+      _inputFiles = _getImageFiles(inputDir);
+      _inputDir = inputDir;
+      _metaFile = await _getMeta(inputDir);
+    } catch (e, s) {
+      print(e);
+      print(s);
+      _inputDir = null;
+      _inputFiles = [];
+      _metaFile = null;
+    } finally {
+      setState(() {});
+    }
+  }
 
-    setState(() {});
+  Future<CaptureMetaFile> _getMeta(String inputDir) async {
+    final file = File(p.join(inputDir, 'meta.json'));
+    final content = await file.readAsString();
+    return CaptureMetaFile.fromJson(json.decode(content));
   }
 
   Future<void> _pickSaveJson() async {
@@ -117,6 +134,42 @@ class _DetectorImagesPitchesPageState extends State<DetectorImagesPitchesPage> {
     });
   }
 
+  List<Widget> _buildItems() {
+    return _inputFiles
+        .map(
+          (f) => Padding(
+            padding: const EdgeInsets.symmetric(vertical: 4),
+            child: ImageItem(
+              image: f,
+              result: _lastResult?.getResult(f),
+              preview: _preview,
+              tools: Row(
+                mainAxisAlignment: MainAxisAlignment.end,
+                children: [
+                  IconButton(
+                    onPressed: () => _onSetGridLines(f),
+                    tooltip: '使用此圖片的 Grid Lines',
+                    icon: Icon(Icons.menu, color: Colors.white),
+                  ),
+                  SizedBox(width: 8),
+                  IconButton(
+                    onPressed: () {
+                      final result = _lastResult?.getResult(f);
+                      if (result == null) return;
+
+                      print(const JsonEncoder.withIndent('  ').convert(result.toJson()));
+                    },
+                    tooltip: '除錯用 (Console)',
+                    icon: Icon(Icons.bug_report_outlined, color: Colors.white),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        )
+        .toList();
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -149,7 +202,7 @@ class _DetectorImagesPitchesPageState extends State<DetectorImagesPitchesPage> {
                     children: [
                       FilledButton.icon(
                         onPressed: running ? null : _run,
-                        icon: running ? const CircularProgressIndicator() : const Icon(Icons.play_arrow),
+                        icon: const Icon(Icons.play_arrow),
                         label: const Text('開始批量處理'),
                       ),
                       const SizedBox(width: 16),
@@ -189,36 +242,7 @@ class _DetectorImagesPitchesPageState extends State<DetectorImagesPitchesPage> {
                     child: SingleChildScrollView(child: Text(log)),
                   ),
                 ),
-                ..._inputFiles.map(
-                  (f) => Padding(
-                    padding: const EdgeInsets.symmetric(vertical: 4),
-                    child: ImageItem(
-                      image: f,
-                      result: _lastResult?.getResult(f),
-                      preview: _preview,
-                      tools: Row(
-                        children: [
-                          IconButton(
-                            onPressed: () => _onSetGridLines(f),
-                            tooltip: '使用此圖片的 Grid Lines',
-                            icon: Icon(Icons.menu, color: Colors.white),
-                          ),
-                          SizedBox(width: 8),
-                          IconButton(
-                            onPressed: () {
-                              final result = _lastResult?.getResult(f);
-                              if (result == null) return;
-
-                              print(const JsonEncoder.withIndent('  ').convert(result.toJson()));
-                            },
-                            tooltip: '除錯用 (Console)',
-                            icon: Icon(Icons.bug_report_outlined, color: Colors.white),
-                          ),
-                        ],
-                      ),
-                    ),
-                  ),
-                ),
+                ..._buildItems(),
               ],
             ),
           ),
@@ -277,44 +301,31 @@ class ImageItem extends StatefulWidget {
 }
 
 class _ImageItemState extends State<ImageItem> {
-  var _isHover = false;
-
   @override
   Widget build(BuildContext context) {
-    return Stack(
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        Opacity(
-          opacity: 0.5,
-          // opacity: 1,
-          child: Image.file(File(widget.image.path), fit: BoxFit.fitWidth),
-        ),
-        Positioned.fill(
-          child: CustomPaint(
-            painter: widget.result == null || !widget.preview ? null : ImageItemPainter(widget.result!),
-            child: SizedBox.expand(),
-          ),
-        ),
-        if (widget.tools != null)
-          Positioned(
-            bottom: 8,
-            right: 8,
-            child: MouseRegion(
-              onEnter: (_) {
-                setState(() => _isHover = true);
-              },
-              onExit: (_) {
-                setState(() => _isHover = false);
-              },
-              child: AnimatedOpacity(
-                opacity: _isHover ? 1 : 0,
-                duration: const Duration(milliseconds: 200),
-                child: Container(
-                  padding: const EdgeInsets.all(4),
-                  decoration: BoxDecoration(color: Colors.black54, borderRadius: BorderRadius.circular(8)),
-                  child: widget.tools!,
-                ),
+        Stack(
+          children: [
+            Opacity(
+              opacity: 0.5,
+              // opacity: 1,
+              child: Image.file(File(widget.image.path), fit: BoxFit.fitWidth),
+            ),
+            Positioned.fill(
+              child: CustomPaint(
+                painter: widget.result == null || !widget.preview ? null : ImageItemPainter(widget.result!),
+                child: SizedBox.expand(),
               ),
             ),
+          ],
+        ),
+        if (widget.tools != null)
+          Container(
+            padding: const EdgeInsets.all(8),
+            decoration: BoxDecoration(color: Colors.black87, ),
+            child: widget.tools!,
           ),
       ],
     );

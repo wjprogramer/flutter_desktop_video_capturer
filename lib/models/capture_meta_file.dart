@@ -39,9 +39,7 @@ class CaptureMetaFile {
     return {
       "video": videoPath,
       "rect": {"x": x, "y": y, "w": w, "h": h},
-      "rules": rules
-          .map((r) => {"start_ms": r.start.inMilliseconds, "interval_ms": r.interval.inMilliseconds})
-          .toList(),
+      "rules": rules.map((r) => r.toJson()).toList(),
       "stops_ms": stopPoints.map((e) => e.inMilliseconds).toList(),
       "segments": segments.map((s) => s.toJson()).toList(),
     };
