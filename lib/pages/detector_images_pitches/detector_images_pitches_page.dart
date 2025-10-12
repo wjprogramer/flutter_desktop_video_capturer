@@ -565,6 +565,13 @@ class ImageItemPainter extends CustomPainter {
       final yy = y.toDouble();
       canvas.drawLine(Offset(0, yy), Offset(imgW, yy), gridPaint);
     }
+    final double avgGap = getGridLinesAvgGap(result.gridLinesY);
+    final lastY = result.gridLinesY.last.toDouble();
+    canvas.drawLine(
+      Offset(0, lastY + avgGap),
+      Offset(imgW, lastY + avgGap),
+      gridPaint..color = Colors.pink.withAlpha(100),
+    );
 
     // 以最底線當 y=0 基準，由下往上換算
     final yBottom = result.gridLinesY.isNotEmpty ? result.gridLinesY.last.toDouble() : (imgH - 1.0);
@@ -581,6 +588,7 @@ class ImageItemPainter extends CustomPainter {
 
     // 文字（標記 y_units）
     final textStyle = const TextStyle(color: Color(0xFF2E8BFF), fontSize: 12);
+    final pitchTextStyle = const TextStyle(color: Color(0xFF2E8BFF), fontSize: 20);
     final bars = barsOverride ?? result.bars;
 
     for (int i = 0; i < bars.length; i++) {
@@ -606,11 +614,19 @@ class ImageItemPainter extends CustomPainter {
       canvas.drawCircle(Offset((x0 + x1) / 2.0, yc), 2.5 / scale, barStroke);
 
       // 可選：在框上方標記 y_line_units
+      // final tp = TextPainter(
+      //   text: TextSpan(text: b.yUnits.toStringAsFixed(2), style: textStyle),
+      //   textDirection: TextDirection.ltr,
+      // )..layout();
+      // tp.paint(canvas, Offset(x0, y0 - 14 / scale));
+
+      // 標上 index
+      final pitchIndex = _getBarIndex(result.gridLinesY, y0, y1);
       final tp = TextPainter(
-        text: TextSpan(text: b.yUnits.toStringAsFixed(2), style: textStyle),
+        text: TextSpan(text: pitchIndex.toString(), style: pitchTextStyle),
         textDirection: TextDirection.ltr,
       )..layout();
-      tp.paint(canvas, Offset(x0, y0 - 14 / scale));
+      tp.paint(canvas, Offset(x0, y0 - 18 / scale));
 
       // 把手
       if (selectedIndex == i) {
@@ -630,4 +646,66 @@ class ImageItemPainter extends CustomPainter {
   bool shouldRepaint(covariant CustomPainter oldDelegate) {
     return true;
   }
+}
+
+double getGridLinesAvgGap(List<int> gridLinesY) {
+  if (gridLinesY.length < 2) return 1.0;
+  double sum = 0;
+  for (int i = 1; i < gridLinesY.length; i++) {
+    sum += (gridLinesY[i] - gridLinesY[i - 1]).toDouble();
+  }
+  return sum / (gridLinesY.length - 1);
+}
+
+int _getBarIndex(List<int> gridLinesY, double y0, double y1) {
+  // 以區段的中心判斷（你保證不跨兩線，中心就足夠代表「哪邊面積多」）
+  final c = (y0 + y1) / 2.0;
+  if (gridLinesY.isEmpty) return 0;
+
+  // 平均線距與半格
+  final double avgGap = getGridLinesAvgGap(gridLinesY);
+  final halfGap = avgGap / 2.0;
+
+  final L = gridLinesY;
+  final n = L.length;
+
+  // ---- 底部（大於最後一條）→ 負號向下延伸：-1, -2, ...
+  if (c >= L.last) {
+    final d = (c - L.last);
+    final halfSteps = (d / halfGap).floor();
+    // 緊貼最後一條但在其下方半格 → -1
+    return -(halfSteps + 1);
+  }
+
+  // ---- 頂部（小於第一條）→ 往上延伸：18, 19, 20, ...
+  if (c < L.first) {
+    final d = (L.first - c);
+    final halfSteps = (d / halfGap).floor();
+    // 內部最上段(i=0)的索引是 16/17，所以上方從 18 開始遞增
+    return 2 * (n - 1) + halfSteps;
+  }
+
+  // ---- 落在相鄰兩條線中間：找 i 使得 L[i] <= c < L[i+1]
+  int i = 0;
+  int lo = 0, hi = n - 2;
+  while (lo <= hi) {
+    final mid = (lo + hi) >> 1;
+    if (c < L[mid]) {
+      hi = mid - 1;
+    } else if (c >= L[mid + 1]) {
+      lo = mid + 1;
+    } else {
+      i = mid;
+      break;
+    }
+  }
+
+  final midPt = (L[i] + L[i + 1]) / 2.0;
+
+  // 由底往上編號：區段 (L[i], L[i+1]) 的「自底序號」s = 0 對應最底段(201~222)
+  final sFromBottom = (n - 2) - i; // i=8 → s=0, i=7 → s=1, ...
+  final baseEven = 2 * sFromBottom; // 底段：0/1；再上去：2/3；再上去：4/5…
+
+  // 下半（靠近較大的 y，即較「下面」那條線）→ 偶數；上半 → 奇數
+  return (c < midPt) ? (baseEven + 1) : baseEven;
 }
