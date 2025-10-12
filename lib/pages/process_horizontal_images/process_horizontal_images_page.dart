@@ -105,15 +105,27 @@ class _PanoramaCutterPageState extends State<PanoramaCutterPage> {
       ..clear()
       ..add(0)
       ..add(totalWidth);
-    _rebuildSegments();
+    _rebuildSegments(preserveKeeps: false);
   }
 
-  void _rebuildSegments() {
-    segments
-      ..clear();
+  void _rebuildSegments({bool preserveKeeps = true}) {
+    final oldSegments = List<Segment>.from(segments);
+    segments.clear();
     cuts.sort();
     for (int i = 0; i < cuts.length - 1; i++) {
-      segments.add(Segment(cuts[i], cuts[i + 1], true));
+      final start = cuts[i];
+      final end = cuts[i + 1];
+      bool keep = true;
+      if (preserveKeeps && oldSegments.isNotEmpty) {
+        final mid = (start + end) / 2.0;
+        for (final o in oldSegments) {
+          if (mid >= o.startX && mid < o.endX) {
+            keep = o.keep;
+            break;
+          }
+        }
+      }
+      segments.add(Segment(start, end, keep));
     }
     setState(() {});
   }

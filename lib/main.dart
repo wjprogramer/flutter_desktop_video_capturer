@@ -13,6 +13,7 @@ class VideoFrameExtractorApp extends StatelessWidget {
   Widget build(BuildContext context) {
     return MaterialApp(
       title: 'Video Frame Extractor',
+      debugShowCheckedModeBanner: false,
       theme: ThemeData(primarySwatch: Colors.blue),
       builder: BotToastInit(),
       navigatorObservers: [BotToastNavigatorObserver()],

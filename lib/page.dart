@@ -4,7 +4,8 @@ import 'dart:math' as math;
 
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
-import 'package:flutter_desktop_video_capturer/process_horizontal_images/process_horizontal_images_page.dart';
+import 'package:flutter_desktop_video_capturer/pages/menu/menu_page.dart';
+import 'package:flutter_desktop_video_capturer/pages/process_horizontal_images/process_horizontal_images_page.dart';
 import 'package:flutter_desktop_video_capturer/toast.dart';
 import 'package:path/path.dart' as p;
 import 'package:path_provider/path_provider.dart';
@@ -570,9 +571,9 @@ class _HomePageState extends State<HomePage> {
         actions: [
           IconButton(
             onPressed: () {
-              Navigator.of(context).push(MaterialPageRoute(builder: (context) => const PanoramaCutterPage()));
+              Navigator.of(context).push(MaterialPageRoute(builder: (context) => const MenuPage()));
             },
-            icon: Icon(Icons.abc),
+            icon: Icon(Icons.menu),
           ),
         ],
       ),
