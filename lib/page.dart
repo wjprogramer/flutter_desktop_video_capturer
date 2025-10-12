@@ -285,6 +285,7 @@ class _HomePageState extends State<HomePage> {
   }) async {
     if (videoPath == null || rules.isEmpty || rectVideoPx == null || _controller == null) return;
     final newRules = rules.map((e) => e.copyWith(rect: rect)).toList();
+    var imageIndex = 0;
 
     final segs = _buildSegments(_controller!.value.duration);
     if (segs.isEmpty) {
@@ -331,7 +332,7 @@ class _HomePageState extends State<HomePage> {
     for (int i = 0; i < segs.length; i++) {
       final seg = segs[i];
       final r = seg.rule; // 已帶有 end
-      final segDir = Directory(p.join(projectDir.path, 'seg_$i'));
+      final segDir = Directory(p.join(projectDir.path)); // , 'seg_$i'
       if (!segDir.existsSync()) segDir.createSync(recursive: true);
 
       final x = r.rect.left.round();
@@ -368,7 +369,7 @@ class _HomePageState extends State<HomePage> {
         }
       }
 
-      await forceCaptureSegStart();
+      // await forceCaptureSegStart();
 
       final fps = 1 / (r.interval.inMilliseconds / 1000.0);
       final durationSec = ((r.end ?? _controller!.value.duration) - r.start).inMilliseconds / 1000.0;
@@ -385,7 +386,7 @@ class _HomePageState extends State<HomePage> {
         durationSec.toStringAsFixed(3),
         '-vf',
         'crop=$w:$h:$x:$y,fps=$fps',
-        p.join(segDir.path, 'frame_%04d.png'),
+        p.join(segDir.path, 'frame_%d.png'),
       ];
 
       _addLog('執行: ffmpeg ${args.join(' ')}');
@@ -394,6 +395,18 @@ class _HomePageState extends State<HomePage> {
         process.stdout.transform(SystemEncoding().decoder).listen((data) => _addLog('stdout: $data'));
         process.stderr.transform(SystemEncoding().decoder).listen((data) => _addLog('stderr: $data'));
         final code = await process.exitCode;
+
+        // rename frame_%d
+        final files = segDir.listSync().whereType<File>().where((f) => p.basename(f.path).startsWith('frame_'));
+        final sortedFiles = files.toList()
+          ..sort((a, b) => a.path.compareTo(b.path));
+        for (final f in sortedFiles) {
+          final newName = 'f_${imageIndex.toString()}${p.extension(f.path)}';
+          final newPath = p.join(segDir.path, newName);
+          f.renameSync(newPath);
+          imageIndex++;
+        }
+
         _addLog('完成 seg_$i，exit=$code');
       } catch (e) {
         _addLog('啟動 ffmpeg 失敗: $e');
@@ -486,18 +499,6 @@ class _HomePageState extends State<HomePage> {
       'crop=$w:$h:$x:$y,fps=$fps',
       outputPattern,
     ];
-  }
-
-  void addSampleRule() {
-    // // 測試用的規則
-    // rules.add(
-    //   CaptureRule(
-    //     start: const Duration(seconds: 10),
-    //     interval: const Duration(milliseconds: 1200),
-    //     rect: const Rect.fromLTWH(100, 200, 400, 100),
-    //   ),
-    // );
-    // setState(() {});
   }
 
   String _durationText(Duration d) {
