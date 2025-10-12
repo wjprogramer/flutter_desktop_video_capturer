@@ -5,6 +5,7 @@ import 'dart:math' as math;
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_desktop_video_capturer/models/capture_meta_file.dart';
+import 'package:flutter_desktop_video_capturer/utilities/shared_preference.dart';
 import 'package:image/image.dart' as img;
 import 'package:path/path.dart' as p;
 
@@ -129,6 +130,7 @@ class _DetectorImagesPitchesPageState extends State<DetectorImagesPitchesPage> {
     final result = _lastResult?.getResult(file);
     if (result == null) return;
 
+    MySharedPreference.instance.setGridLines(result.gridLinesY);
     setState(() {
       _gridLinesY = result.gridLinesY;
     });
@@ -221,9 +223,22 @@ class _DetectorImagesPitchesPageState extends State<DetectorImagesPitchesPage> {
                   runSpacing: 12,
                   children: [
                     FilledButton.icon(
-                      onPressed: _gridLinesY.isEmpty ? null : () => setState(() => _gridLinesY = []),
+                      onPressed: _gridLinesY.isEmpty ? null : () async {
+                        setState(() => _gridLinesY = []);
+                        _run();
+                      },
                       icon: const Icon(Icons.clear),
                       label: const Text('清空'),
+                    ),
+                    FilledButton.icon(
+                      onPressed: () async {
+                        final gridLines = await MySharedPreference.instance.getGridLines();
+                        if (gridLines == null || gridLines.isEmpty) return;
+                        setState(() => _gridLinesY = gridLines);
+                        await _run();
+                      },
+                      icon: const Icon(Icons.download),
+                      label: Text('載入'),
                     ),
                   ],
                 ),
@@ -324,7 +339,7 @@ class _ImageItemState extends State<ImageItem> {
         if (widget.tools != null)
           Container(
             padding: const EdgeInsets.all(8),
-            decoration: BoxDecoration(color: Colors.black87, ),
+            decoration: BoxDecoration(color: Colors.black87),
             child: widget.tools!,
           ),
       ],
