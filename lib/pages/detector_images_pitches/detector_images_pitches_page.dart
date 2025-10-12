@@ -110,68 +110,87 @@ class _DetectorImagesPitchesPageState extends State<DetectorImagesPitchesPage> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(title: const Text('Blue Bar Detector (Windows)')),
-      body: ListView(
-        padding: const EdgeInsets.all(16),
+      body: Column(
         children: [
-          Row(
-            children: [
-              Expanded(child: Text(_inputDir ?? '未選擇輸入資料夾')),
-              const SizedBox(width: 12),
-              FilledButton(onPressed: running ? null : _pickFolder, child: const Text('選輸入資料夾')),
-            ],
-          ),
-          const SizedBox(height: 12),
-          Row(
-            children: [
-              Expanded(child: Text(outputFile.isEmpty ? '未選擇輸出檔案' : outputFile)),
-              const SizedBox(width: 12),
-              FilledButton(onPressed: running ? null : _pickSaveJson, child: const Text('選輸出 JSON')),
-            ],
-          ),
-          const SizedBox(height: 24),
-          SingleChildScrollView(
-            scrollDirection: Axis.horizontal,
-            child: Row(
+          Expanded(
+            child: ListView(
+              padding: const EdgeInsets.all(16),
               children: [
-                FilledButton.icon(
-                  onPressed: running ? null : _run,
-                  icon: running ? const CircularProgressIndicator() : const Icon(Icons.play_arrow),
-                  label: const Text('開始批量處理'),
+                Row(
+                  children: [
+                    Expanded(child: Text(_inputDir ?? '未選擇輸入資料夾')),
+                    const SizedBox(width: 12),
+                    FilledButton(onPressed: running ? null : _pickFolder, child: const Text('選輸入資料夾')),
+                  ],
                 ),
-                const SizedBox(width: 16),
-                FilledButton.icon(
-                  onPressed: running ? null : _outputToFile,
-                  icon: const Icon(Icons.save),
-                  label: const Text('輸出到 JSON 檔案'),
+                const SizedBox(height: 12),
+                Row(
+                  children: [
+                    Expanded(child: Text(outputFile.isEmpty ? '未選擇輸出檔案' : outputFile)),
+                    const SizedBox(width: 12),
+                    FilledButton(onPressed: running ? null : _pickSaveJson, child: const Text('選輸出 JSON')),
+                  ],
                 ),
-                const SizedBox(width: 16),
-                FilledButton.icon(
-                  onPressed: () => setState(() => _preview = !_preview),
-                  icon: Icon(_preview ? Icons.visibility : Icons.visibility_off),
-                  label: Text(_preview ? '關閉圖片預覽' : '開啟圖片預覽'),
+                const SizedBox(height: 24),
+                SingleChildScrollView(
+                  scrollDirection: Axis.horizontal,
+                  child: Row(
+                    children: [
+                      FilledButton.icon(
+                        onPressed: running ? null : _run,
+                        icon: running ? const CircularProgressIndicator() : const Icon(Icons.play_arrow),
+                        label: const Text('開始批量處理'),
+                      ),
+                      const SizedBox(width: 16),
+                      FilledButton.icon(
+                        onPressed: running ? null : _outputToFile,
+                        icon: const Icon(Icons.save),
+                        label: const Text('輸出到 JSON 檔案'),
+                      ),
+                    ],
+                  ),
+                ),
+                const SizedBox(height: 12),
+                const Text('Log:'),
+                const SizedBox(height: 8),
+                SizedBox(
+                  height: 300,
+                  child: Container(
+                    width: double.infinity,
+                    padding: const EdgeInsets.all(12),
+                    decoration: BoxDecoration(
+                      border: Border.all(color: Colors.grey.shade300),
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                    child: SingleChildScrollView(child: Text(log)),
+                  ),
+                ),
+                ..._inputFiles.map(
+                  (f) => Padding(
+                    padding: const EdgeInsets.symmetric(vertical: 4),
+                    child: ImageItem(image: f, result: _lastResult?.getResult(f), preview: _preview),
+                  ),
                 ),
               ],
             ),
           ),
-          const SizedBox(height: 12),
-          const Text('Log:'),
-          const SizedBox(height: 8),
-          SizedBox(
-            height: 300,
-            child: Container(
-              width: double.infinity,
-              padding: const EdgeInsets.all(12),
-              decoration: BoxDecoration(
-                border: Border.all(color: Colors.grey.shade300),
-                borderRadius: BorderRadius.circular(8),
-              ),
-              child: SingleChildScrollView(child: Text(log)),
+          Container(
+            padding: const EdgeInsets.all(8),
+            decoration: BoxDecoration(
+              border: Border(top: BorderSide(color: Colors.grey.shade300)),
             ),
-          ),
-          ..._inputFiles.map(
-            (f) => Padding(
-              padding: const EdgeInsets.symmetric(vertical: 4),
-              child: ImageItem(image: f, result: _lastResult?.getResult(f), preview: _preview),
+            child: SingleChildScrollView(
+              scrollDirection: Axis.horizontal,
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.start,
+                children: [
+                  FilledButton.icon(
+                    onPressed: () => setState(() => _preview = !_preview),
+                    icon: Icon(_preview ? Icons.visibility : Icons.visibility_off),
+                    label: Text(_preview ? '關閉圖片預覽' : '開啟圖片預覽'),
+                  ),
+                ],
+              ),
             ),
           ),
         ],
@@ -205,18 +224,20 @@ class ImageItem extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return CustomPaint(
-      painter: result == null || !preview ? null : ImageItemPainter(result!),
-      child: Opacity(opacity: 0.3, child: Image.file(File(image.path), fit: BoxFit.fitWidth)),
-      // child: AspectRatio(
-      //   aspectRatio: result == null ? 1 : (result!.width / result!.height),
-      //   child: Container(
-      //     decoration: BoxDecoration(
-      //       border: Border.all(color: Colors.red),
-      //       borderRadius: BorderRadius.circular(8),
-      //     ),
-      //   ),
-      // ),
+    return Stack(
+      children: [
+        Opacity(
+          opacity: 0.5,
+          // opacity: 1,
+          child: Image.file(File(image.path), fit: BoxFit.fitWidth),
+        ),
+        Positioned.fill(
+          child: CustomPaint(
+            painter: result == null || !preview ? null : ImageItemPainter(result!),
+            child: SizedBox.expand(),
+          ),
+        ),
+      ],
     );
   }
 }
