@@ -1,7 +1,9 @@
+import 'dart:convert';
 import 'dart:io';
 
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter_desktop_video_capturer/pages/detector_images_pitches/provider/tmp.dart';
 
 import '../core/detector.dart';
 import '../detector_images_pitches_page.dart';
@@ -41,6 +43,25 @@ class DetectorImagesPitchesProvider extends ChangeNotifier {
     final newImages = List<ImageResult>.from(_lastResult!.images)..[resultIndex] = newResult;
     _lastResult = _lastResult?.copyWith(images: newImages);
     notifyListeners();
+  }
+
+  /// 開發暫時用
+  void tmp() {
+    const targetIndex = 12;
+    final res = _lastResult;
+    if (res == null) return;
+
+    final previousProcessed = tmpProcessed.map((e) => ImageResult.fromJson(e)).toList();
+
+    _lastResult = res.copyWith(images: [
+      ...previousProcessed,
+      ...res.images.skip(previousProcessed.length),
+    ]);
+    notifyListeners();
+
+    // final jsonList = <Map<String, dynamic>>[];
+    // jsonList.addAll(res.images.take(targetIndex + 1).map((image) => image.toJson()));
+    // print(JsonEncoder.withIndent('    ').convert(jsonList));
   }
 
   void setSelectedBarIndexOfImage(File f, int? barIndex) {
@@ -91,5 +112,6 @@ class DetectorImagesPitchesProvider extends ChangeNotifier {
     }
     notifyListeners();
   }
+
   // endregion
 }

@@ -175,6 +175,8 @@ class _DetectorImagesPitchesPageState extends State<DetectorImagesPitchesPage> {
         segmentIndex = currentSegmentIndex;
       }
 
+      results.add(Text(i.toString()));
+
       if (timeInfo != null) {
         results.add(Text(
           timeInfo.startTime.toString()
@@ -366,6 +368,14 @@ class _DetectorImagesPitchesPageState extends State<DetectorImagesPitchesPage> {
                     onPressed: () => setState(() => _preview = !_preview),
                     icon: Icon(_preview ? Icons.visibility : Icons.visibility_off),
                     label: Text(_preview ? '關閉圖片預覽' : '開啟圖片預覽'),
+                  ),
+                  SizedBox(width: 8),
+                  FilledButton.icon(
+                    onPressed: () async {
+                      _provider.tmp();
+                    },
+                    icon: const Icon(Icons.bug_report_outlined),
+                    label: const Text('暫時用'),
                   ),
                 ],
               ),
@@ -701,7 +711,7 @@ class ImageItemPainter extends CustomPainter {
 
     // 文字（標記 y_units）
     final textStyle = const TextStyle(color: Color(0xFF2E8BFF), fontSize: 12);
-    final pitchTextStyle = const TextStyle(color: Color(0xFF2E8BFF), fontSize: 20);
+    final pitchTextStyle = const TextStyle(color: Color(0xFF2E8BFF), fontSize: 24, backgroundColor: Colors.white);
     final bars = barsOverride ?? result.bars;
 
     for (int i = 0; i < bars.length; i++) {
