@@ -1,5 +1,6 @@
 import 'dart:math' as math;
 
+import 'package:equatable/equatable.dart';
 import 'package:image/image.dart' as img;
 
 class DetectedBar {
@@ -32,8 +33,8 @@ class DetectedBar {
   };
 }
 
-class ImageResult {
-  ImageResult({
+class ImageResult extends Equatable {
+  const ImageResult({
     required this.file,
     required this.width,
     required this.height,
@@ -81,6 +82,9 @@ class ImageResult {
       bars: bars ?? this.bars,
     );
   }
+
+  @override
+  List<Object?> get props => [file, width, height, gridLinesY, lineSpacingPx, bars];
 }
 
 // ===== 核心流程 =====

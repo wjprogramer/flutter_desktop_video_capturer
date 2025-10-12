@@ -2,6 +2,7 @@ import 'dart:convert';
 import 'dart:io';
 import 'dart:math' as math;
 
+import 'package:equatable/equatable.dart';
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -9,8 +10,11 @@ import 'package:flutter_desktop_video_capturer/models/capture_meta_file.dart';
 import 'package:flutter_desktop_video_capturer/utilities/shared_preference.dart';
 import 'package:image/image.dart' as img;
 import 'package:path/path.dart' as p;
+import 'package:provider/provider.dart';
 
+import 'core/detect_pitches_exporter.dart';
 import 'core/detector.dart';
+import 'provider/detector_images_pitches_provider.dart';
 
 class DetectorImagesPitchesPage extends StatefulWidget {
   const DetectorImagesPitchesPage({super.key});
@@ -20,11 +24,11 @@ class DetectorImagesPitchesPage extends StatefulWidget {
 }
 
 class _DetectorImagesPitchesPageState extends State<DetectorImagesPitchesPage> {
+  final _provider = DetectorImagesPitchesProvider();
   String? _inputDir;
   String outputFile = '';
   bool running = false;
   String log = '';
-  _ProcessResult? _lastResult;
   List<File> _inputFiles = [];
   List<int> _gridLinesY = [];
   CaptureMetaFile? _metaFile;
@@ -95,11 +99,10 @@ class _DetectorImagesPitchesPageState extends State<DetectorImagesPitchesPage> {
       }
     }
 
-    _lastResult = _ProcessResult(images: results);
+    _provider.setResult(ImagePitchDetectorResult(images: results));
     setState(() => running = false);
   }
 
-  // get files
   List<File> _getImageFiles(String inputDir) {
     final dir = Directory(inputDir);
     final files =
@@ -117,19 +120,34 @@ class _DetectorImagesPitchesPageState extends State<DetectorImagesPitchesPage> {
       _append('請先選擇輸出 JSON 路徑');
       return;
     }
-    if (_lastResult == null) {
+    if (_provider.lastResult == null) {
       _append('沒有可輸出的結果');
       return;
     }
-    final List<Map<String, dynamic>> jsonObjList = _lastResult!.images.map((e) => e.toJson()).toList();
-    await File(outputFile).writeAsString(const JsonEncoder.withIndent('  ').convert(jsonObjList));
+    if (_metaFile == null) {
+      _append('沒有可輸出的結果 (缺少 meta.json)');
+      return;
+    }
+    final exporter = DetectPitchesExporter(
+      previousStepResult: _provider.lastResult!,
+      metaFile: _metaFile!,
+      inputFiles: _inputFiles,
+    );
+    // final List<Map<String, dynamic>> jsonObjList = _provider.lastResult!.images.map((e) => e.toJson()).toList();
+    // await File(outputFile).writeAsString(const JsonEncoder.withIndent('  ').convert(jsonObjList));
+    await File(outputFile).writeAsString(const JsonEncoder.withIndent('  ').convert(exporter.exportToJson()));
     _append('完成，已輸出到: $outputFile');
   }
 
   /// 將單一 Result 的 grid lines 設定到全域 _gridLinesY，並重新計算結果
   Future<void> _onSetGridLines(File file) async {
-    final result = _lastResult?.getResult(file);
+    final result = _provider.lastResult?.getResult(file);
     if (result == null) return;
+
+    if (_sameList(_gridLinesY, result.gridLinesY)) {
+      // 沒變更就不處理
+      return;
+    }
 
     MySharedPreference.instance.setGridLines(result.gridLinesY);
     setState(() {
@@ -137,67 +155,110 @@ class _DetectorImagesPitchesPageState extends State<DetectorImagesPitchesPage> {
     });
   }
 
-  void _onDelete(File f, int barIndex) {
-    final result = _lastResult?.getResult(f);
-    if (result == null) {
-      return;
-    }
-    final resultIndex = _lastResult?.getImageResultIndex(f);
-    if (resultIndex == null) {
-      return;
-    }
-    final newBars = List<DetectedBar>.from(result.bars)..removeAt(barIndex);
-    final newResult = result.copyWith(bars: newBars);
-    final newImages = List<ImageResult>.from(_lastResult!.images)..[resultIndex] = newResult;
-    setState(() {
-      _lastResult = _lastResult?.copyWith(images: newImages);
-    });
-  }
-
   List<Widget> _buildItems() {
-    return _inputFiles
-        .map(
-          (f) => Padding(
-            padding: const EdgeInsets.symmetric(vertical: 4),
-            child: ImageItem(
-              image: f,
-              result: _lastResult?.getResult(f),
-              preview: _preview,
-              onDelete: (barIndex) => _onDelete(f, barIndex),
-              tools: Row(
-                mainAxisAlignment: MainAxisAlignment.end,
-                children: [
-                  IconButton(
-                    onPressed: () => _onSetGridLines(f),
-                    tooltip: '使用此圖片的 Grid Lines',
-                    icon: Icon(Icons.menu, color: Colors.white),
-                  ),
-                  SizedBox(width: 8),
-                  IconButton(
-                    onPressed: () {
-                      final result = _lastResult?.getResult(f);
-                      if (result == null) return;
+    final results = <Widget>[];
+    int? segmentIndex;
 
-                      print(const JsonEncoder.withIndent('  ').convert(result.toJson()));
-                    },
-                    tooltip: '除錯用 (Console)',
-                    icon: Icon(Icons.bug_report_outlined, color: Colors.white),
-                  ),
-                  IconButton(
-                    onPressed: () {
-                      final result = _lastResult?.getResult(f);
-                      if (result == null || result.bars.isEmpty) return;
-                      _onDelete(f, result.bars.length - 1);
-                    },
-                    tooltip: '',
-                    icon: Icon(Icons.remove_circle_outline, color: Colors.white),
-                  ),
-                ],
+    for (var i = 0; i < _inputFiles.length; i++) {
+      final f = _inputFiles[i];
+      final timeInfo = _metaFile?.getTimeInfoByIndex(i);
+      final currentSegmentIndex = _metaFile?.getSegmentIndex(i);
+
+      if (currentSegmentIndex != segmentIndex) {
+        results.add(Padding(
+          padding: const EdgeInsets.symmetric(vertical: 8),
+          child: Text(
+            'Segment ${currentSegmentIndex ?? '?'}',
+            style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+          ),
+        ));
+        segmentIndex = currentSegmentIndex;
+      }
+
+      if (timeInfo != null) {
+        results.add(Text(
+          timeInfo.startTime.toString()
+        ));
+      }
+
+      results.add(
+        Padding(
+          padding: const EdgeInsets.symmetric(vertical: 4),
+          child: ImageItem(
+            provider: _provider,
+            image: f,
+            preview: _preview,
+            tools: ChangeNotifierProvider.value(
+              value: _provider,
+              child: Builder(
+                builder: (context) {
+                  context.watch<DetectorImagesPitchesProvider>();
+                  return SingleChildScrollView(
+                    scrollDirection: Axis.horizontal,
+                    reverse: true,
+                    child: IntrinsicHeight(
+                      child: Row(
+                        mainAxisAlignment: MainAxisAlignment.end,
+                        children: [
+                          IconButton(
+                            onPressed: () => _onSetGridLines(f),
+                            tooltip: '使用此圖片的 Grid Lines',
+                            icon: Icon(Icons.menu, color: Colors.white),
+                          ),
+                          SizedBox(width: 8),
+                          IconButton(
+                            onPressed: () {
+                              final result = _provider.getImageResult(f);
+                              if (result == null) return;
+
+                              print(const JsonEncoder.withIndent('  ').convert(result.toJson()));
+                            },
+                            tooltip: '除錯用 (Console)',
+                            icon: Icon(Icons.bug_report_outlined, color: Colors.white),
+                          ),
+                          SizedBox(width: 8),
+                          VerticalDivider(),
+                          SizedBox(width: 8),
+                          IconButton(
+                            onPressed: _provider.getSelectedBarIndexOfImage(f) == null
+                                ? null
+                                : () {
+                                    _provider.deleteSelectedBarOfImage(f);
+                                  },
+                            tooltip: '刪除選取的藍條',
+                            icon: Icon(
+                              Icons.delete,
+                              color: _provider.getSelectedBarIndexOfImage(f) == null ? Colors.grey : Colors.white,
+                            ),
+                          ),
+                          SizedBox(width: 8),
+                          IconButton(
+                            onPressed: _provider.getSelectedBarIndexOfImage(f) == null
+                                ? null
+                                : () {
+                                    final sel = _provider.getSelectedBarIndexOfImage(f);
+                                    if (sel == null) return;
+                                    _provider.copyAndPasteBarOfImage(f, sel);
+                                  },
+                            tooltip: '複製並貼上選取的藍條',
+                            icon: Icon(
+                              Icons.copy,
+                              color: _provider.getSelectedBarIndexOfImage(f) == null ? Colors.grey : Colors.white,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  );
+                },
               ),
             ),
           ),
-        )
-        .toList();
+        ),
+      );
+    }
+
+    return results;
   }
 
   @override
@@ -316,8 +377,8 @@ class _DetectorImagesPitchesPageState extends State<DetectorImagesPitchesPage> {
   }
 }
 
-class _ProcessResult {
-  _ProcessResult({required this.images});
+class ImagePitchDetectorResult extends Equatable {
+  const ImagePitchDetectorResult({required this.images});
 
   final List<ImageResult> images;
 
@@ -329,8 +390,8 @@ class _ProcessResult {
     }
   }
 
-  _ProcessResult copyWith({List<ImageResult>? images}) {
-    return _ProcessResult(images: images ?? this.images);
+  ImagePitchDetectorResult copyWith({List<ImageResult>? images}) {
+    return ImagePitchDetectorResult(images: images ?? this.images);
   }
 
   int? getImageResultIndex(File file) {
@@ -340,30 +401,38 @@ class _ProcessResult {
       return null;
     }
   }
+
+  @override
+  List<Object?> get props => [images];
 }
 
 enum _DragMode { move, resizeLeft, resizeRight }
 
 class ImageItem extends StatefulWidget {
-  const ImageItem({super.key, required this.image, this.result, this.preview = true, this.tools, this.onDelete});
+  const ImageItem({super.key, required this.provider, required this.image, this.preview = true, this.tools});
 
   final File image;
-
-  final ImageResult? result;
 
   final bool preview;
 
   final Widget? tools;
 
-  final void Function(int barIndex)? onDelete;
+  final DetectorImagesPitchesProvider provider;
 
   @override
   State<ImageItem> createState() => _ImageItemState();
 }
 
 class _ImageItemState extends State<ImageItem> {
-  List<DetectedBar> get _bars => widget.result?.bars ?? const [];
-  int? _sel;
+  File get _image => widget.image;
+
+  DetectorImagesPitchesProvider get _provider => widget.provider;
+
+  ImageResult? get _result => _provider.getImageResult(_image);
+
+  List<DetectedBar> get _bars => _result?.bars ?? const [];
+
+  int? get _sel => _provider.getSelectedBarIndexOfImage(_image);
 
   _DragMode? _mode;
   Offset? _dragStartCanvas;
@@ -375,8 +444,8 @@ class _ImageItemState extends State<ImageItem> {
   }
 
   ({double scale, double dx, double dy}) _tf(Size paintSize) {
-    final imgW = (widget.result?.width ?? 1).toDouble();
-    final imgH = (widget.result?.height ?? 1).toDouble();
+    final imgW = (_result?.width ?? 1).toDouble();
+    final imgH = (_result?.height ?? 1).toDouble();
     final scale = math.min(paintSize.width / imgW, paintSize.height / imgH);
     final dx = (paintSize.width - imgW * scale) / 2.0;
     final dy = (paintSize.height - imgH * scale) / 2.0;
@@ -394,13 +463,13 @@ class _ImageItemState extends State<ImageItem> {
   }
 
   int? _hitTestBar(Offset imgPt, {double tolPx = 6}) {
-    final imgW = (widget.result?.width ?? 1).toDouble();
-    final imgH = (widget.result?.height ?? 1).toDouble();
-    if (widget.result == null) return null;
+    final imgW = (_result?.width ?? 1).toDouble();
+    final imgH = (_result?.height ?? 1).toDouble();
+    if (_result == null) return null;
 
     // 取格線基準
-    final yBottom = widget.result!.gridLinesY.isNotEmpty ? widget.result!.gridLinesY.last.toDouble() : (imgH - 1.0);
-    final spacing = widget.result!.lineSpacingPx;
+    final yBottom = _result!.gridLinesY.isNotEmpty ? _result!.gridLinesY.last.toDouble() : (imgH - 1.0);
+    final spacing = _result!.lineSpacingPx;
 
     for (int i = 0; i < _bars.length; i++) {
       final b = _bars[i];
@@ -414,10 +483,10 @@ class _ImageItemState extends State<ImageItem> {
   }
 
   _DragMode? _hitWhichHandle(Offset imgPt, int idx, {double tolPx = 8}) {
-    final imgW = (widget.result?.width ?? 1).toDouble();
-    final imgH = (widget.result?.height ?? 1).toDouble();
-    final yBottom = widget.result!.gridLinesY.isNotEmpty ? widget.result!.gridLinesY.last.toDouble() : (imgH - 1.0);
-    final spacing = widget.result!.lineSpacingPx;
+    final imgW = (_result?.width ?? 1).toDouble();
+    final imgH = (_result?.height ?? 1).toDouble();
+    final yBottom = _result!.gridLinesY.isNotEmpty ? _result!.gridLinesY.last.toDouble() : (imgH - 1.0);
+    final spacing = _result!.lineSpacingPx;
 
     final b = _bars[idx];
     final x0 = b.x0 * imgW, x1 = b.x1 * imgW;
@@ -430,140 +499,142 @@ class _ImageItemState extends State<ImageItem> {
 
   @override
   Widget build(BuildContext context) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.stretch,
-      children: [
-        Stack(
-          children: [
-            Opacity(
-              opacity: 0.5,
-              // opacity: 1,
-              child: Image.file(File(widget.image.path), fit: BoxFit.fitWidth),
-            ),
-            Positioned.fill(
-              child: LayoutBuilder(
-                builder: (ctx, constraints) {
-                  final paintSize = Size(constraints.maxWidth, constraints.maxHeight);
-                  return Focus(
-                    autofocus: false,
-                    onKeyEvent: (node, evt) {
-                      if (_sel != null &&
-                          evt is KeyDownEvent &&
-                          evt.logicalKey.keyId == LogicalKeyboardKey.delete.keyId) {
-                        widget.onDelete?.call(_sel!);
-                        _sel = null;
-                        setState(() {});
-                        return KeyEventResult.handled;
-                      }
-                      return KeyEventResult.ignored;
-                    },
-                    child: GestureDetector(
-                      onTapDown: (e) {
-                        if (widget.result == null) return;
-                        final imgPt = _canvasToImage(e.localPosition, paintSize);
-                        final idx = _hitTestBar(imgPt);
-                        setState(() => _sel = idx);
-                      },
-                      onSecondaryTapDown: (e) {
-                        if (_sel != null) {
-                          setState(() {
-                            widget.onDelete?.call(_sel!);
-                            _sel = null;
-                          });
-                        }
-                      },
-                      onPanStart: (e) {
-                        if (widget.result == null) return;
-                        final imgPt = _canvasToImage(e.localPosition, paintSize);
-                        final idx = _hitTestBar(imgPt);
-                        if (idx == null) return;
-                        _sel = idx;
-                        _mode = _hitWhichHandle(imgPt, idx);
-                        _dragStartCanvas = e.localPosition;
-                        _startBar = _bars[idx];
-                        setState(() {});
-                      },
-                      onPanUpdate: (e) {
-                        if (widget.result == null || _sel == null || _mode == null || _startBar == null) return;
-                        final t = _tf(paintSize);
-                        final dxImg = e.delta.dx / t.scale;
-                        final dyImg = e.delta.dy / t.scale;
+    return ChangeNotifierProvider.value(
+      value: _provider,
+      child: Builder(
+        builder: (context) {
+          context.watch<DetectorImagesPitchesProvider>();
 
-                        final imgW = widget.result!.width.toDouble();
-                        final imgH = widget.result!.height.toDouble();
-                        final yBottom = widget.result!.gridLinesY.isNotEmpty
-                            ? widget.result!.gridLinesY.last.toDouble()
-                            : (imgH - 1.0);
-                        final spacing = widget.result!.lineSpacingPx;
+          return Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Stack(
+                children: [
+                  Opacity(
+                    opacity: 0.5,
+                    // opacity: 1,
+                    child: Image.file(File(widget.image.path), fit: BoxFit.fitWidth),
+                  ),
+                  Positioned.fill(
+                    child: LayoutBuilder(
+                      builder: (ctx, constraints) {
+                        final paintSize = Size(constraints.maxWidth, constraints.maxHeight);
+                        return Focus(
+                          autofocus: false,
+                          onKeyEvent: (node, evt) {
+                            if (_sel != null &&
+                                evt is KeyDownEvent &&
+                                evt.logicalKey.keyId == LogicalKeyboardKey.delete.keyId) {
+                              _provider.deleteSelectedBarOfImage(widget.image);
+                              return KeyEventResult.handled;
+                            }
+                            return KeyEventResult.ignored;
+                          },
+                          child: GestureDetector(
+                            onTapDown: (e) {
+                              if (_result == null) return;
+                              final imgPt = _canvasToImage(e.localPosition, paintSize);
+                              final idx = _hitTestBar(imgPt);
+                              _provider.setSelectedBarIndexOfImage(widget.image, idx);
+                            },
+                            onSecondaryTapDown: (e) {
+                              _provider.deleteSelectedBarOfImage(widget.image);
+                            },
+                            onPanStart: (e) {
+                              if (_result == null) return;
+                              final imgPt = _canvasToImage(e.localPosition, paintSize);
+                              final idx = _hitTestBar(imgPt);
+                              if (idx == null) return;
+                              _provider.setSelectedBarIndexOfImage(widget.image, idx);
+                              _mode = _hitWhichHandle(imgPt, idx);
+                              _dragStartCanvas = e.localPosition;
+                              _startBar = _bars[idx];
+                              setState(() {});
+                            },
+                            onPanUpdate: (e) {
+                              if (_result == null || _sel == null || _mode == null || _startBar == null) return;
+                              final t = _tf(paintSize);
+                              final dxImg = e.delta.dx / t.scale;
+                              final dyImg = e.delta.dy / t.scale;
 
-                        var b = _bars[_sel!];
-                        if (_mode == _DragMode.move) {
-                          // 平移：x0/x1 整體移動，yUnits 依 dy 換算
-                          final dxn = dxImg / imgW;
-                          final newX0 = (b.x0 + dxn).clamp(0.0, 1.0);
-                          final newX1 = (b.x1 + dxn).clamp(0.0, 1.0);
-                          final newYUnits = b.yUnits - (dyImg / spacing);
-                          _bars[_sel!] = DetectedBar(
-                            xCenter: ((newX0 + newX1) / 2).clamp(0.0, 1.0),
-                            x0: newX0,
-                            x1: newX1,
-                            yUnits: newYUnits,
-                            yNorm: (newYUnits / 9).clamp(0.0, 1.0),
-                            w: newX1 - newX0,
-                            h: b.h,
-                          );
-                        } else if (_mode == _DragMode.resizeLeft) {
-                          final dxn = dxImg / imgW;
-                          final newX0 = (b.x0 + dxn).clamp(0.0, b.x1 - 0.001);
-                          _bars[_sel!] = DetectedBar(
-                            xCenter: ((newX0 + b.x1) / 2),
-                            x0: newX0,
-                            x1: b.x1,
-                            yUnits: b.yUnits,
-                            yNorm: b.yNorm,
-                            w: (b.x1 - newX0),
-                            h: b.h,
-                          );
-                        } else if (_mode == _DragMode.resizeRight) {
-                          final dxn = dxImg / imgW;
-                          final newX1 = (b.x1 + dxn).clamp(b.x0 + 0.001, 1.0);
-                          _bars[_sel!] = DetectedBar(
-                            xCenter: ((b.x0 + newX1) / 2),
-                            x0: b.x0,
-                            x1: newX1,
-                            yUnits: b.yUnits,
-                            yNorm: b.yNorm,
-                            w: (newX1 - b.x0),
-                            h: b.h,
-                          );
-                        }
-                        setState(() {});
+                              final imgW = _result!.width.toDouble();
+                              final imgH = _result!.height.toDouble();
+                              final yBottom = _result!.gridLinesY.isNotEmpty
+                                  ? _result!.gridLinesY.last.toDouble()
+                                  : (imgH - 1.0);
+                              final spacing = _result!.lineSpacingPx;
+
+                              var b = _bars[_sel!];
+                              if (_mode == _DragMode.move) {
+                                // 平移：x0/x1 整體移動，yUnits 依 dy 換算
+                                final dxn = dxImg / imgW;
+                                final newX0 = (b.x0 + dxn).clamp(0.0, 1.0);
+                                final newX1 = (b.x1 + dxn).clamp(0.0, 1.0);
+                                final newYUnits = b.yUnits - (dyImg / spacing);
+                                _bars[_sel!] = DetectedBar(
+                                  xCenter: ((newX0 + newX1) / 2).clamp(0.0, 1.0),
+                                  x0: newX0,
+                                  x1: newX1,
+                                  yUnits: newYUnits,
+                                  yNorm: (newYUnits / 9).clamp(0.0, 1.0),
+                                  w: newX1 - newX0,
+                                  h: b.h,
+                                );
+                              } else if (_mode == _DragMode.resizeLeft) {
+                                final dxn = dxImg / imgW;
+                                final newX0 = (b.x0 + dxn).clamp(0.0, b.x1 - 0.001);
+                                _bars[_sel!] = DetectedBar(
+                                  xCenter: ((newX0 + b.x1) / 2),
+                                  x0: newX0,
+                                  x1: b.x1,
+                                  yUnits: b.yUnits,
+                                  yNorm: b.yNorm,
+                                  w: (b.x1 - newX0),
+                                  h: b.h,
+                                );
+                              } else if (_mode == _DragMode.resizeRight) {
+                                final dxn = dxImg / imgW;
+                                final newX1 = (b.x1 + dxn).clamp(b.x0 + 0.001, 1.0);
+                                _bars[_sel!] = DetectedBar(
+                                  xCenter: ((b.x0 + newX1) / 2),
+                                  x0: b.x0,
+                                  x1: newX1,
+                                  yUnits: b.yUnits,
+                                  yNorm: b.yNorm,
+                                  w: (newX1 - b.x0),
+                                  h: b.h,
+                                );
+                              }
+                              setState(() {});
+                            },
+                            onPanEnd: (_) {
+                              _mode = null;
+                              _dragStartCanvas = null;
+                              _startBar = null;
+                            },
+                            child: CustomPaint(
+                              painter: _result == null || !widget.preview
+                                  ? null
+                                  : ImageItemPainter(_result!, selectedIndex: _sel, barsOverride: _bars),
+                              child: const SizedBox.expand(),
+                            ),
+                          ),
+                        );
                       },
-                      onPanEnd: (_) {
-                        _mode = null;
-                        _dragStartCanvas = null;
-                        _startBar = null;
-                      },
-                      child: CustomPaint(
-                        painter: widget.result == null || !widget.preview
-                            ? null
-                            : ImageItemPainter(widget.result!, selectedIndex: _sel, barsOverride: _bars),
-                        child: const SizedBox.expand(),
-                      ),
                     ),
-                  );
-                },
+                  ),
+                ],
               ),
-            ),
-          ],
-        ),
-        if (widget.tools != null)
-          Container(
-            padding: const EdgeInsets.all(8),
-            decoration: BoxDecoration(color: Colors.black87),
-            child: widget.tools!,
-          ),
-      ],
+              if (widget.tools != null)
+                Container(
+                  padding: const EdgeInsets.all(8),
+                  decoration: BoxDecoration(color: Colors.black87),
+                  child: widget.tools!,
+                ),
+            ],
+          );
+        },
+      ),
     );
   }
 }
@@ -663,7 +734,7 @@ class ImageItemPainter extends CustomPainter {
       // tp.paint(canvas, Offset(x0, y0 - 14 / scale));
 
       // 標上 index
-      final pitchIndex = _getBarIndex(result.gridLinesY, y0, y1);
+      final pitchIndex = getBarIndex(result.gridLinesY, y0, y1);
       final tp = TextPainter(
         text: TextSpan(text: pitchIndex.toString(), style: pitchTextStyle),
         textDirection: TextDirection.ltr,
@@ -699,7 +770,7 @@ double getGridLinesAvgGap(List<int> gridLinesY) {
   return sum / (gridLinesY.length - 1);
 }
 
-int _getBarIndex(List<int> gridLinesY, double y0, double y1) {
+int getBarIndex(List<int> gridLinesY, double y0, double y1) {
   // 以區段的中心判斷（你保證不跨兩線，中心就足夠代表「哪邊面積多」）
   final c = (y0 + y1) / 2.0;
   if (gridLinesY.isEmpty) return 0;
@@ -750,4 +821,13 @@ int _getBarIndex(List<int> gridLinesY, double y0, double y1) {
 
   // 下半（靠近較大的 y，即較「下面」那條線）→ 偶數；上半 → 奇數
   return (c < midPt) ? (baseEven + 1) : baseEven;
+}
+
+/// 比對兩個 List 是否內容相同（順序也要相同）
+bool _sameList<T>(List<T> a, List<T> b) {
+  if (a.length != b.length) return false;
+  for (int i = 0; i < a.length; i++) {
+    if (a[i] != b[i]) return false;
+  }
+  return true;
 }

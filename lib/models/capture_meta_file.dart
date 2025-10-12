@@ -44,6 +44,38 @@ class CaptureMetaFile {
       "segments": segments.map((s) => s.toJson()).toList(),
     };
   }
+
+  int? getSegmentIndex(int frameIndex) {
+    final indices = _getSegmentIndexAndFrameIndexByFrameIndex(frameIndex);
+    return indices?.$1;
+  }
+
+  FrameTimeInfo getTimeInfoByIndex(int frameIndex) {
+    final indices = _getSegmentIndexAndFrameIndexByFrameIndex(frameIndex);
+    if (indices == null) {
+      throw Exception("Frame index out of range");
+    }
+    final (segmentIndex, frameIndexInSegment) = indices;
+    final segment = segments[segmentIndex];
+    final plannedTimeMs = segment.plannedCaptureTimesMs[frameIndexInSegment];
+    final startTime = Duration(milliseconds: plannedTimeMs); // Don't add "segment.start"
+    final endTime = segment.end ?? startTime;
+    final duration = endTime - startTime;
+    return FrameTimeInfo(startTime: startTime, duration: duration);
+  }
+
+  (int, int)? _getSegmentIndexAndFrameIndexByFrameIndex(int frameIndex) {
+    var touredCount = 0;
+    for (var i = 0; i < segments.length; i++) {
+      final segment = segments[i];
+      final segmentFrameCount = segment.plannedCaptureTimesMs.length;
+      if (frameIndex < touredCount + segmentFrameCount) {
+        return (i, frameIndex - touredCount);
+      }
+      touredCount += segmentFrameCount;
+    }
+    return null;
+  }
 }
 
 class CapturedSegment {
@@ -84,4 +116,14 @@ class CapturedSegment {
       "planned_capture_times_ms": plannedCaptureTimesMs,
     };
   }
+}
+
+class FrameTimeInfo {
+  const FrameTimeInfo({
+    required this.startTime,
+    required this.duration,
+  });
+
+  final Duration startTime;
+  final Duration duration;
 }
