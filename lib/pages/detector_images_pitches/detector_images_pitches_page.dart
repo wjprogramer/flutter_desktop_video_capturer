@@ -168,10 +168,12 @@ class _DetectorImagesPitchesPageState extends State<DetectorImagesPitchesPage> {
               child: SingleChildScrollView(child: Text(log)),
             ),
           ),
-          ...[_inputFiles.first].map((f) => Padding(
-            padding: const EdgeInsets.symmetric(vertical: 4),
-            child: ImageItem(image: f, result: _lastResult?.getResult(f), preview: _preview),
-          )),
+          ..._inputFiles.map(
+            (f) => Padding(
+              padding: const EdgeInsets.symmetric(vertical: 4),
+              child: ImageItem(image: f, result: _lastResult?.getResult(f), preview: _preview),
+            ),
+          ),
         ],
       ),
     );
