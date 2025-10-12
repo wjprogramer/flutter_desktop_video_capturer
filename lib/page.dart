@@ -5,7 +5,6 @@ import 'dart:math' as math;
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_desktop_video_capturer/pages/menu/menu_page.dart';
-import 'package:flutter_desktop_video_capturer/pages/process_horizontal_images/process_horizontal_images_page.dart';
 import 'package:flutter_desktop_video_capturer/toast.dart';
 import 'package:path/path.dart' as p;
 import 'package:path_provider/path_provider.dart';
@@ -21,8 +20,23 @@ class CaptureRule {
   final Duration interval;
   final Rect rect; // 影片像素座標
 
+  factory CaptureRule.fromJson(Map<String, dynamic> json) {
+    return CaptureRule(
+      start: Duration(milliseconds: json["start_ms"]),
+      end: json["end_ms"] != null ? Duration(milliseconds: json["end_ms"]) : null,
+      interval: Duration(milliseconds: json["interval_ms"]),
+      rect: Rect.fromLTWH(
+        (json["rect"]["x"] as num).toDouble(),
+        (json["rect"]["y"] as num).toDouble(),
+        (json["rect"]["w"] as num).toDouble(),
+        (json["rect"]["h"] as num).toDouble(),
+      ),
+    );
+  }
+
   Map<String, dynamic> toJson() => {
     "start_ms": start.inMilliseconds,
+    "end_ms": end?.inMilliseconds,
     "interval_ms": interval.inMilliseconds,
     "rect": {"x": rect.left.toInt(), "y": rect.top.toInt(), "w": rect.width.toInt(), "h": rect.height.toInt()},
   };
@@ -954,8 +968,8 @@ class _HomePageState extends State<HomePage> {
                       ],
                     ),
                   ],
-                  Text('個人常用設定'),
-                  if (videoController != null)
+                  if (videoController != null) ...[
+                    Text('個人常用設定'),
                     Wrap(
                       spacing: 8,
                       runSpacing: 8,
@@ -987,6 +1001,32 @@ class _HomePageState extends State<HomePage> {
                             .expand((e) => e),
                       ],
                     ),
+                    Text('Debug 專用 (For 乾燥花)'),
+                    Wrap(
+                      children: [
+                        ElevatedButton(
+                          onPressed: () {
+                            rules.clear();
+                            stopPoints.clear();
+
+                            rules.addAll([
+                              CaptureRule.fromJson({"start_ms":23859,"end_ms":null,"interval_ms":3322,"rect":{"x":0,"y":155,"w":1920,"h":260}}),
+                              CaptureRule.fromJson({"start_ms":119641,"end_ms":null,"interval_ms":3322,"rect":{"x":0,"y":155,"w":1920,"h":260}}),
+                              CaptureRule.fromJson({"start_ms":209646,"end_ms":null,"interval_ms":3322,"rect":{"x":0,"y":155,"w":1920,"h":260}}),
+                            ]);
+                            stopPoints.addAll([
+                              Duration(milliseconds: 107752),
+                              Duration(milliseconds: 202981),
+                              Duration(milliseconds: 266308),
+                            ]);
+
+                            setState(() {});
+                          },
+                          child: Text('設定擷取規則和停止點'),
+                        ),
+                      ],
+                    ),
+                  ],
                 ],
               ),
             ),
