@@ -47,21 +47,20 @@ class DetectorImagesPitchesProvider extends ChangeNotifier {
 
   /// 開發暫時用
   void tmp() {
-    const targetIndex = 12;
     final res = _lastResult;
     if (res == null) return;
 
     final previousProcessed = tmpProcessed.map((e) => ImageResult.fromJson(e)).toList();
 
-    _lastResult = res.copyWith(images: [
-      ...previousProcessed,
-      ...res.images.skip(previousProcessed.length),
-    ]);
-    notifyListeners();
+    // _lastResult = res.copyWith(images: [
+    //   ...previousProcessed,
+    //   ...res.images.skip(previousProcessed.length),
+    // ]);
+    // notifyListeners();
 
-    // final jsonList = <Map<String, dynamic>>[];
-    // jsonList.addAll(res.images.take(targetIndex + 1).map((image) => image.toJson()));
-    // print(JsonEncoder.withIndent('    ').convert(jsonList));
+    final jsonList = <Map<String, dynamic>>[];
+    jsonList.addAll(res.images.map((image) => image.toJson()));
+    print(JsonEncoder.withIndent('    ').convert(jsonList));
   }
 
   void setSelectedBarIndexOfImage(File f, int? barIndex) {
