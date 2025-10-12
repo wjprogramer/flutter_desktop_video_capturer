@@ -386,7 +386,8 @@ class _HomePageState extends State<HomePage> {
         durationSec.toStringAsFixed(3),
         '-vf',
         'crop=$w:$h:$x:$y,fps=$fps',
-        p.join(segDir.path, 'frame_%d.png'),
+        // %04d => 避免後面排序有問題
+        p.join(segDir.path, 'frame_%04d.png'),
       ];
 
       _addLog('執行: ffmpeg ${args.join(' ')}');
