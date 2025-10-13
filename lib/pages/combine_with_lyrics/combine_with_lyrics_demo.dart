@@ -37,26 +37,9 @@ class _CombineWithLyricsDemoPageState extends State<CombineWithLyricsDemoPage> {
     }).toList();
   }
 
-  void _updateNewPitchDataList() {
-    const startTimeForAdjust = Duration(seconds: 31, milliseconds: 800);
-    const adjustTime = Duration(milliseconds: 50);
-    const sign = -1; // 1: 往後調, -1: 往前調
-
-    final newPitchData = _pitchData.map((p) {
-      if (p.start >= startTimeForAdjust) {
-        final newStart = p.start + adjustTime * sign;
-        final newEnd = p.end + adjustTime * sign;
-        return _PitchData(pitchIndex: p.pitchIndex, start: newStart, end: newEnd);
-      } else {
-        return _PitchData(pitchIndex: p.pitchIndex, start: p.start, end: p.end);
-      }
-    }).toList();
-
-    _pitchData = newPitchData;
-    setState(() {});
-
+  void _printPitchDataList() {
     print(
-      newPitchData.map((p) {
+      _pitchData.map((p) {
         return JsonEncoder().convert({
           'pitch': p.pitchIndex,
           'start_in_ms': p.start.inMilliseconds,
@@ -68,13 +51,40 @@ class _CombineWithLyricsDemoPageState extends State<CombineWithLyricsDemoPage> {
 
   void _shiftFrom(Duration start, Duration delta) {
     _pushHistory();
+
+    // 先記住目前選取的 pitch（若它會被平移，記下平移後的時間）
+    final sel = _selectedPitch;
+    final bool selWillMove = sel != null && sel.start >= start;
+    final Duration? selNewStart = selWillMove ? sel!.start + delta : null;
+    final Duration? selNewEnd   = selWillMove ? sel!.end + delta   : null;
+
     setState(() {
+      // 1) 做平移
       _pitchData = _pitchData.map((p) {
         if (p.start >= start) {
-          return _PitchData(pitchIndex: p.pitchIndex, start: p.start + delta, end: p.end + delta);
+          return _PitchData(
+            pitchIndex: p.pitchIndex,
+            start: p.start + delta,
+            end: p.end + delta,
+          );
         }
         return p;
       }).toList();
+
+      // 2) 若選取的那條被平移了，重新在新陣列裡指向它
+      if (selWillMove && selNewStart != null && selNewEnd != null) {
+        // 以 pitchIndex + start/end 完整匹配，避免誤配
+        final idx = _pitchData.indexWhere((p) =>
+        p.pitchIndex == sel.pitchIndex &&
+            p.start == selNewStart &&
+            p.end == selNewEnd);
+        if (idx != -1) {
+          _selectedPitch = _pitchData[idx];
+        } else {
+          // 找不到就先清掉，避免指向舊物件
+          _selectedPitch = null;
+        }
+      }
     });
   }
 
@@ -144,6 +154,7 @@ class _CombineWithLyricsDemoPageState extends State<CombineWithLyricsDemoPage> {
                             ],
                           ),
                         ),
+                        SizedBox(width: 30)
                       ],
                     ),
                   );
@@ -168,6 +179,11 @@ class _CombineWithLyricsDemoPageState extends State<CombineWithLyricsDemoPage> {
                   onPressed: _redoStack.isEmpty ? null : _redo,
                   icon: const Icon(Icons.redo),
                   label: const Text('Redo'),
+                ),
+                FilledButton.tonalIcon(
+                  onPressed: _printPitchDataList,
+                  icon: const Icon(Icons.code),
+                  label: const Text('Print Pitch Data'),
                 ),
                 if (_selectedPitch == null)
                   const Text('點一下上方的 pitch bar 以選取並微調')
