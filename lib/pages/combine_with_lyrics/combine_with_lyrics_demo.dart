@@ -18,6 +18,8 @@ class _CombineWithLyricsDemoPageState extends State<CombineWithLyricsDemoPage> {
   List<_PitchData> _pitchData = [];
   List<LyricsLine> _lyricsLines = [];
 
+  // For adjust
+
   @override
   void initState() {
     super.initState();
@@ -31,17 +33,23 @@ class _CombineWithLyricsDemoPageState extends State<CombineWithLyricsDemoPage> {
     }).toList();
   }
 
-  void _printNewPitchDataList() {
-    const startTimeForAdjust = Duration(seconds: 0);
-    const adjustTime = Duration(seconds: 12, milliseconds: 55); // 1.2
+  void _updateNewPitchDataList() {
+    const startTimeForAdjust = Duration(seconds: 31, milliseconds: 800);
+    const adjustTime = Duration(milliseconds: 50);
+    const sign = -1; // 1: 往後調, -1: 往前調
 
     final newPitchData = _pitchData.map((p) {
       if (p.start >= startTimeForAdjust) {
-        return _PitchData(pitchIndex: p.pitchIndex, start: p.start + adjustTime, end: p.end + adjustTime);
+        final newStart = p.start + adjustTime * sign;
+        final newEnd = p.end + adjustTime * sign;
+        return _PitchData(pitchIndex: p.pitchIndex, start: newStart, end: newEnd);
       } else {
         return _PitchData(pitchIndex: p.pitchIndex, start: p.start, end: p.end);
       }
     }).toList();
+
+    _pitchData = newPitchData;
+    setState(() {});
 
     print(
       newPitchData.map((p) {
@@ -60,36 +68,53 @@ class _CombineWithLyricsDemoPageState extends State<CombineWithLyricsDemoPage> {
       appBar: AppBar(title: Text('Combine With Lyrics Demo')),
       floatingActionButton: FloatingActionButton(
         onPressed: () {
-          final p = demoDryFlowerPitchData.map((e) => _PitchData.fromJson(e)).toList();
-          print(p.first.start);
-
-          print(_lyricsLines.first.startTime);
-          print(p.first.start - _lyricsLines.first.startTime);
-
-          print('-----');
-          _printNewPitchDataList();
+          _updateNewPitchDataList();
         },
       ),
-      body: ListView(
+      body: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          ..._lyricsLines.mapIndexed((i, e) {
-            final pitches = _getPitchesForLine(e);
-            return Row(
-              crossAxisAlignment: CrossAxisAlignment.start,
+          Expanded(
+            child: ListView(
               children: [
-                Container(width: 40, height: 40, alignment: Alignment.center, child: Text((i + 1).toString())),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.stretch,
-                    children: [
-                      LyricsLineView(line: e),
-                      if (pitches.isNotEmpty) _PitchView(pitches: pitches, line: e),
-                    ],
-                  ),
-                ),
+                ..._lyricsLines.mapIndexed((i, e) {
+                  final pitches = _getPitchesForLine(e);
+                  return Container(
+                    margin: const EdgeInsets.only(bottom: 20),
+                    padding: const EdgeInsets.only(bottom: 20),
+                    decoration: BoxDecoration(border: Border(bottom: Divider.createBorderSide(context))),
+                    child: Row(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Container(
+                          margin: const EdgeInsets.only(top: 0),
+                          width: 40,
+                          height: 40,
+                          alignment: Alignment.center,
+                          child: Text((i + 1).toString()),
+                        ),
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.stretch,
+                            children: [
+                              Text(e.startTime.toString(), style: TextStyle(color: Colors.orange)),
+                              LyricsLineView(line: e),
+                              if (pitches.isNotEmpty) _PitchView(pitches: pitches, line: e),
+                            ],
+                          ),
+                        ),
+                      ],
+                    ),
+                  );
+                }),
               ],
-            );
-          }),
+            ),
+          ),
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+            decoration: BoxDecoration(border: Border(top: Divider.createBorderSide(context))),
+            child: Wrap(runSpacing: 12, spacing: 12, children: []),
+          ),
         ],
       ),
     );
@@ -121,7 +146,21 @@ class _PitchView extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final totalMs = line.endTime.inMilliseconds - line.startTime.inMilliseconds;
-    return SizedBox(height: 100, child: CustomPaint(painter: _PitchPainter(pitches, totalMs, line.startTime)));
+    return Stack(
+      children: [
+        Container(
+          decoration: BoxDecoration(color: Colors.blue.shade50),
+          width: double.infinity,
+          child: SizedBox(height: 100, child: CustomPaint(painter: _PitchPainter(pitches, totalMs, line.startTime))),
+        ),
+        if (pitches.isNotEmpty)
+          Positioned(
+            left: 0,
+            top: 0,
+            child: Text(pitches.first.start.toString(), style: TextStyle(color: Colors.grey.shade400)),
+          ),
+      ],
+    );
   }
 }
 
@@ -137,7 +176,8 @@ class _PitchPainter extends CustomPainter {
     final paint = Paint()
       ..color = Colors.blueAccent
       ..strokeWidth = 3;
-    final pitchTextStyle = const TextStyle(color: Color(0xFF2E8BFF), fontSize: 20);
+    final pitchTextStyle = const TextStyle(color: Color(0xFF2E8BFF), fontSize: 15);
+    final durationTextStyle = const TextStyle(color: Colors.black, fontSize: 10);
 
     for (final p in pitches) {
       final start = (p.start - offset).inMilliseconds / totalMs * size.width;
@@ -149,7 +189,18 @@ class _PitchPainter extends CustomPainter {
         text: TextSpan(text: p.pitchIndex.toString(), style: pitchTextStyle),
         textDirection: TextDirection.ltr,
       )..layout();
-      tp.paint(canvas, Offset(start, y - 18));
+      tp.paint(canvas, Offset(start, y - 26));
+
+      var millsSecondsForCalc = p.start.inMilliseconds;
+      final minutes = millsSecondsForCalc ~/ 60000;
+      final seconds = millsSecondsForCalc % 60000 ~/ 1000;
+      final minText = minutes.toString().padLeft(2, '0');
+      final secondsText = seconds.toString().padLeft(2, '0');
+      final tp2 = TextPainter(
+        text: TextSpan(text: '$minText:$secondsText', style: durationTextStyle),
+        textDirection: TextDirection.ltr,
+      )..layout();
+      tp2.paint(canvas, Offset(start, y - 40));
     }
   }
 
