@@ -6,6 +6,10 @@ import 'package:flutter_desktop_video_capturer/demo_data/dry_flower/data.dart';
 import 'package:flutter_desktop_video_capturer/demo_data/dry_flower/pitch_data.dart';
 import 'package:flutter_desktop_video_capturer/external/flutter_singer/models/models.dart';
 import 'package:flutter_desktop_video_capturer/external/flutter_singer/widgets/lyrics_line_view.dart';
+import 'package:flutter_desktop_video_capturer/external/flutter_singer_tools/models/note_name.dart';
+import 'package:flutter_desktop_video_capturer/external/flutter_singer_tools/models/pitch_name.dart';
+
+const minGap = Duration(milliseconds: 120); // 視情況調整閾值
 
 class CombineWithLyricsDemoPage extends StatefulWidget {
   const CombineWithLyricsDemoPage({super.key});
@@ -110,6 +114,162 @@ class _CombineWithLyricsDemoPageState extends State<CombineWithLyricsDemoPage> {
     setState(() {});
   }
 
+
+
+  List<Widget> _buildChildren() {
+    final results = <Widget>[];
+
+    // Helper: 判斷 pitch 是否屬於某 line
+    bool _belongsToLine(_PitchData p, LyricsLine line) {
+      return p.start >= line.startTime && p.start < line.endTime;
+    }
+
+    // 取得所有「沒有落在任何 line 內」的 pitch
+    final unassigned = _pitchData.where((p) {
+      return !_lyricsLines.any((line) => _belongsToLine(p, line));
+    }).toList();
+
+    // 依 start 排序，方便之後插入正確位置
+    unassigned.sort((a, b) => a.start.compareTo(b.start));
+
+    for (var i = 0; i < _lyricsLines.length; i++) {
+      final line = _lyricsLines[i];
+      final pitches = _getPitchesForLine(line);
+
+      if (i == 0) {
+        final before = unassigned.where((p) => p.start < line.startTime).toList();
+        if (before.isNotEmpty) {
+          results.add(Container(
+            margin: const EdgeInsets.only(bottom: 20),
+            padding: const EdgeInsets.only(bottom: 20),
+            decoration: BoxDecoration(
+              border: Border(bottom: Divider.createBorderSide(context)),
+            ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Text('🔹 遺漏 Pitch（歌詞前）', style: TextStyle(color: Colors.red)),
+                _PitchView(
+                  pitches: before,
+                  line: LyricsLine(
+                    startTime: Duration.zero,
+                    endTime: line.startTime,
+                    content: '',
+                    translation: const {},
+                  ),
+                  selected: _selectedPitch,
+                  onSelect: (p) => setState(() => _selectedPitch = p),
+                ),
+              ],
+            ),
+          ));
+        }
+      }
+
+      results.add(Container(
+        margin: const EdgeInsets.only(bottom: 20),
+        padding: const EdgeInsets.only(bottom: 20),
+        decoration: BoxDecoration(border: Border(bottom: Divider.createBorderSide(context))),
+        child: Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Container(
+              margin: const EdgeInsets.only(top: 0),
+              width: 40,
+              height: 40,
+              alignment: Alignment.center,
+              child: Text((i + 1).toString()),
+            ),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  Text(line.startTime.toString(), style: TextStyle(color: Colors.orange)),
+                  LyricsLineView(line: line),
+                  if (pitches.isNotEmpty)
+                    _PitchView(
+                      pitches: pitches,
+                      line: line,
+                      selected: _selectedPitch,
+                      onSelect: (p) {
+                        setState(() => _selectedPitch = p);
+                      },
+                    ),
+                ],
+              ),
+            ),
+            SizedBox(width: 30)
+          ],
+        ),
+      ));
+
+      final nextLine = i < _lyricsLines.length - 1 ? _lyricsLines[i + 1] : null;
+      if (nextLine != null) {
+        final between = unassigned
+            .where((p) => p.start >= line.endTime && p.start < nextLine.startTime)
+            .toList();
+        if (between.isNotEmpty) {
+          results.add(Container(
+            margin: const EdgeInsets.only(bottom: 20),
+            padding: const EdgeInsets.only(bottom: 20, left: 20, right: 20),
+            decoration: BoxDecoration(
+              border: Border(bottom: Divider.createBorderSide(context)),
+            ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text('🔹 遺漏 Pitch（第 ${i + 1} 行 → 第 ${i + 2} 行）',
+                    style: const TextStyle(color: Colors.red)),
+                _PitchView(
+                  pitches: between,
+                  line: LyricsLine(
+                    startTime: line.endTime,
+                    endTime: nextLine.startTime,
+                    content: '',
+                    translation: const {},
+                  ),
+                  selected: _selectedPitch,
+                  onSelect: (p) => setState(() => _selectedPitch = p),
+                ),
+              ],
+            ),
+          ));
+        }
+      }
+    }
+
+    // ---- 4️⃣ 最後一行之後的遺漏 pitch ----
+    if (_lyricsLines.isNotEmpty) {
+      final lastEnd = _lyricsLines.last.endTime;
+      final after = unassigned.where((p) => p.start >= lastEnd).toList();
+      if (after.isNotEmpty) {
+        results.add(Container(
+          margin: const EdgeInsets.only(bottom: 20),
+          padding: const EdgeInsets.only(bottom: 20, left: 20, right: 20),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const Text('🔹 遺漏 Pitch（歌詞結束後）', style: TextStyle(color: Colors.red)),
+              _PitchView(
+                pitches: after,
+                line: LyricsLine(
+                  startTime: lastEnd,
+                  endTime: lastEnd + const Duration(seconds: 3),
+                  content: '',
+                  translation: const {},
+                ),
+                selected: _selectedPitch,
+                onSelect: (p) => setState(() => _selectedPitch = p),
+              ),
+            ],
+          ),
+        ));
+      }
+    }
+
+    return results;
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -120,45 +280,7 @@ class _CombineWithLyricsDemoPageState extends State<CombineWithLyricsDemoPage> {
           Expanded(
             child: ListView(
               children: [
-                ..._lyricsLines.mapIndexed((i, e) {
-                  final pitches = _getPitchesForLine(e);
-                  return Container(
-                    margin: const EdgeInsets.only(bottom: 20),
-                    padding: const EdgeInsets.only(bottom: 20),
-                    decoration: BoxDecoration(border: Border(bottom: Divider.createBorderSide(context))),
-                    child: Row(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Container(
-                          margin: const EdgeInsets.only(top: 0),
-                          width: 40,
-                          height: 40,
-                          alignment: Alignment.center,
-                          child: Text((i + 1).toString()),
-                        ),
-                        Expanded(
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.stretch,
-                            children: [
-                              Text(e.startTime.toString(), style: TextStyle(color: Colors.orange)),
-                              LyricsLineView(line: e),
-                              if (pitches.isNotEmpty)
-                                _PitchView(
-                                  pitches: pitches,
-                                  line: e,
-                                  selected: _selectedPitch,
-                                  onSelect: (p) {
-                                    setState(() => _selectedPitch = p);
-                                  },
-                                ),
-                            ],
-                          ),
-                        ),
-                        SizedBox(width: 30)
-                      ],
-                    ),
-                  );
-                }),
+                ..._buildChildren(),
               ],
             ),
           ),
@@ -307,8 +429,9 @@ class _PitchPainter extends CustomPainter {
       ..color = Colors.orange
       ..strokeWidth = 5;
 
-    final pitchTextStyle = const TextStyle(color: Color(0xFF2E8BFF), fontSize: 15);
+    final pitchTextStyle = const TextStyle(color: Color(0xFF2E8BFF), fontSize: 13);
     final durationTextStyle = const TextStyle(color: Colors.black, fontSize: 10);
+    final basePitchAtIndex0 = PitchName.fromNoteOctave(NoteName.gSharp, 3);
 
     for (final p in pitches) {
       final start = (p.start - offset).inMilliseconds / totalMs * size.width;
@@ -318,8 +441,10 @@ class _PitchPainter extends CustomPainter {
       final usePaint = (selected != null && identical(p, selected)) ? selPaint : paint;
       canvas.drawLine(Offset(start, y), Offset(end, y), usePaint);
 
+      final pitchName = basePitchAtIndex0.getNext(p.pitchIndex);
       final tp = TextPainter(
-        text: TextSpan(text: p.pitchIndex.toString(), style: pitchTextStyle),
+        // p.pitchIndex
+        text: TextSpan(text: pitchName.getDisplayName(), style: pitchTextStyle),
         textDirection: TextDirection.ltr,
       )..layout();
       tp.paint(canvas, Offset(start, y - 26));
