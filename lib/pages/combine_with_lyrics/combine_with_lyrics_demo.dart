@@ -19,6 +19,7 @@ class _CombineWithLyricsDemoPageState extends State<CombineWithLyricsDemoPage> {
   List<LyricsLine> _lyricsLines = [];
 
   // For adjust
+  _PitchData? _selectedPitch;
 
   @override
   void initState() {
@@ -62,6 +63,17 @@ class _CombineWithLyricsDemoPageState extends State<CombineWithLyricsDemoPage> {
     );
   }
 
+  void _shiftFrom(Duration start, Duration delta) {
+    setState(() {
+      _pitchData = _pitchData.map((p) {
+        if (p.start >= start) {
+          return _PitchData(pitchIndex: p.pitchIndex, start: p.start + delta, end: p.end + delta);
+        }
+        return p;
+      }).toList();
+    });
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -99,7 +111,15 @@ class _CombineWithLyricsDemoPageState extends State<CombineWithLyricsDemoPage> {
                             children: [
                               Text(e.startTime.toString(), style: TextStyle(color: Colors.orange)),
                               LyricsLineView(line: e),
-                              if (pitches.isNotEmpty) _PitchView(pitches: pitches, line: e),
+                              if (pitches.isNotEmpty)
+                                _PitchView(
+                                  pitches: pitches,
+                                  line: e,
+                                  selected: _selectedPitch,
+                                  onSelect: (p) {
+                                    setState(() => _selectedPitch = p);
+                                  },
+                                ),
                             ],
                           ),
                         ),
@@ -113,7 +133,33 @@ class _CombineWithLyricsDemoPageState extends State<CombineWithLyricsDemoPage> {
           Container(
             padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
             decoration: BoxDecoration(border: Border(top: Divider.createBorderSide(context))),
-            child: Wrap(runSpacing: 12, spacing: 12, children: []),
+            child: Wrap(
+              runSpacing: 12,
+              spacing: 12,
+              children: [
+                if (_selectedPitch == null)
+                  const Text('點一下上方的 pitch bar 以選取並微調')
+                else ...[
+                  Text('選取起點: ${_selectedPitch!.start.inMilliseconds} ms'),
+                  FilledButton(
+                    onPressed: () => _shiftFrom(_selectedPitch!.start, const Duration(milliseconds: -10)),
+                    child: const Text('-10ms'),
+                  ),
+                  FilledButton(
+                    onPressed: () => _shiftFrom(_selectedPitch!.start, const Duration(milliseconds: -50)),
+                    child: const Text('-50ms'),
+                  ),
+                  FilledButton(
+                    onPressed: () => _shiftFrom(_selectedPitch!.start, const Duration(milliseconds: 10)),
+                    child: const Text('+10ms'),
+                  ),
+                  FilledButton(
+                    onPressed: () => _shiftFrom(_selectedPitch!.start, const Duration(milliseconds: 50)),
+                    child: const Text('+50ms'),
+                  ),
+                ],
+              ],
+            ),
           ),
         ],
       ),
@@ -138,44 +184,78 @@ class _PitchData {
 }
 
 class _PitchView extends StatelessWidget {
-  const _PitchView({super.key, required this.pitches, required this.line});
+  const _PitchView({super.key, required this.pitches, required this.line, this.selected, this.onSelect});
 
   final List<_PitchData> pitches;
   final LyricsLine line;
+  final _PitchData? selected;
+  final ValueChanged<_PitchData>? onSelect;
 
   @override
   Widget build(BuildContext context) {
     final totalMs = line.endTime.inMilliseconds - line.startTime.inMilliseconds;
-    return Stack(
-      children: [
-        Container(
-          decoration: BoxDecoration(color: Colors.blue.shade50),
-          width: double.infinity,
-          child: SizedBox(height: 100, child: CustomPaint(painter: _PitchPainter(pitches, totalMs, line.startTime))),
-        ),
-        if (pitches.isNotEmpty)
-          Positioned(
-            left: 0,
-            top: 0,
-            child: Text(pitches.first.start.toString(), style: TextStyle(color: Colors.grey.shade400)),
+    return GestureDetector(
+      behavior: HitTestBehavior.opaque,
+      onTapDown: (details) {
+        final box = context.findRenderObject() as RenderBox?;
+        if (box == null) return;
+        final size = box.size;
+        final local = details.localPosition;
+
+        // 命中測試：把點擊的 x 轉回 line 內的時間點，y 逼近 bar 的水平線
+        final tMs = (local.dx / size.width) * totalMs;
+        final t = line.startTime + Duration(milliseconds: tMs.clamp(0, totalMs).round());
+
+        _PitchData? hit;
+        for (final p in pitches) {
+          if (t >= p.start && t <= p.end) {
+            // 再用 y 距離過濾一下（±10px）
+            final y = size.height * (1 - (p.pitchIndex / 100.0));
+            if ((local.dy - y).abs() <= 10) {
+              hit = p;
+              break;
+            }
+          }
+        }
+        if (hit != null && onSelect != null) onSelect!(hit);
+      },
+      child: Stack(
+        children: [
+          Container(
+            decoration: BoxDecoration(color: Colors.blue.shade50),
+            width: double.infinity,
+            child: SizedBox(height: 100, child: CustomPaint(painter: _PitchPainter(pitches, totalMs, line.startTime, selected: selected))),
           ),
-      ],
+          if (pitches.isNotEmpty)
+            Positioned(
+              left: 0,
+              top: 0,
+              child: Text(pitches.first.start.toString(), style: TextStyle(color: Colors.grey.shade400)),
+            ),
+        ],
+      ),
     );
   }
 }
 
 class _PitchPainter extends CustomPainter {
-  _PitchPainter(this.pitches, this.totalMs, this.offset);
+  _PitchPainter(this.pitches, this.totalMs, this.offset, {this.selected});
 
   final List<_PitchData> pitches;
   final int totalMs;
   final Duration offset;
+  final _PitchData? selected;
 
   @override
   void paint(Canvas canvas, Size size) {
     final paint = Paint()
       ..color = Colors.blueAccent
       ..strokeWidth = 3;
+
+    final selPaint = Paint()
+      ..color = Colors.orange
+      ..strokeWidth = 5;
+
     final pitchTextStyle = const TextStyle(color: Color(0xFF2E8BFF), fontSize: 15);
     final durationTextStyle = const TextStyle(color: Colors.black, fontSize: 10);
 
@@ -183,7 +263,9 @@ class _PitchPainter extends CustomPainter {
       final start = (p.start - offset).inMilliseconds / totalMs * size.width;
       final end = (p.end - offset).inMilliseconds / totalMs * size.width;
       final y = size.height * (1 - (p.pitchIndex / 100.0)); // pitch 越高越上
-      canvas.drawLine(Offset(start, y), Offset(end, y), paint);
+
+      final usePaint = (selected != null && identical(p, selected)) ? selPaint : paint;
+      canvas.drawLine(Offset(start, y), Offset(end, y), usePaint);
 
       final tp = TextPainter(
         text: TextSpan(text: p.pitchIndex.toString(), style: pitchTextStyle),
