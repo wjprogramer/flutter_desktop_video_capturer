@@ -21,6 +21,9 @@ class _CombineWithLyricsDemoPageState extends State<CombineWithLyricsDemoPage> {
   // For adjust
   _PitchData? _selectedPitch;
 
+  final List<List<_PitchData>> _undoStack = [];
+  final List<List<_PitchData>> _redoStack = [];
+
   @override
   void initState() {
     super.initState();
@@ -64,6 +67,7 @@ class _CombineWithLyricsDemoPageState extends State<CombineWithLyricsDemoPage> {
   }
 
   void _shiftFrom(Duration start, Duration delta) {
+    _pushHistory();
     setState(() {
       _pitchData = _pitchData.map((p) {
         if (p.start >= start) {
@@ -74,15 +78,32 @@ class _CombineWithLyricsDemoPageState extends State<CombineWithLyricsDemoPage> {
     });
   }
 
+  List<_PitchData> _snapshot(List<_PitchData> src) =>
+      src.map((p) => _PitchData(pitchIndex: p.pitchIndex, start: p.start, end: p.end)).toList();
+
+  void _pushHistory() {
+    _undoStack.add(_snapshot(_pitchData));
+    _redoStack.clear(); // 新操作發生時清空 redo
+  }
+
+  void _undo() {
+    if (_undoStack.isEmpty) return;
+    _redoStack.add(_snapshot(_pitchData));
+    _pitchData = _undoStack.removeLast();
+    setState(() {});
+  }
+
+  void _redo() {
+    if (_redoStack.isEmpty) return;
+    _undoStack.add(_snapshot(_pitchData));
+    _pitchData = _redoStack.removeLast();
+    setState(() {});
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(title: Text('Combine With Lyrics Demo')),
-      floatingActionButton: FloatingActionButton(
-        onPressed: () {
-          _updateNewPitchDataList();
-        },
-      ),
       body: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
@@ -137,6 +158,17 @@ class _CombineWithLyricsDemoPageState extends State<CombineWithLyricsDemoPage> {
               runSpacing: 12,
               spacing: 12,
               children: [
+                // Undo / Redo
+                FilledButton.tonalIcon(
+                  onPressed: _undoStack.isEmpty ? null : _undo,
+                  icon: const Icon(Icons.undo),
+                  label: const Text('Undo'),
+                ),
+                FilledButton.tonalIcon(
+                  onPressed: _redoStack.isEmpty ? null : _redo,
+                  icon: const Icon(Icons.redo),
+                  label: const Text('Redo'),
+                ),
                 if (_selectedPitch == null)
                   const Text('點一下上方的 pitch bar 以選取並微調')
                 else ...[
@@ -224,7 +256,10 @@ class _PitchView extends StatelessWidget {
           Container(
             decoration: BoxDecoration(color: Colors.blue.shade50),
             width: double.infinity,
-            child: SizedBox(height: 100, child: CustomPaint(painter: _PitchPainter(pitches, totalMs, line.startTime, selected: selected))),
+            child: SizedBox(
+              height: 100,
+              child: CustomPaint(painter: _PitchPainter(pitches, totalMs, line.startTime, selected: selected)),
+            ),
           ),
           if (pitches.isNotEmpty)
             Positioned(
