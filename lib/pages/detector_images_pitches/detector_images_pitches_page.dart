@@ -6,6 +6,8 @@ import 'package:equatable/equatable.dart';
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:flutter_desktop_video_capturer/external/flutter_singer_tools/models/note_name.dart';
+import 'package:flutter_desktop_video_capturer/external/flutter_singer_tools/models/pitch_name.dart';
 import 'package:flutter_desktop_video_capturer/models/capture_meta_file.dart';
 import 'package:flutter_desktop_video_capturer/utilities/shared_preference.dart';
 import 'package:image/image.dart' as img;
@@ -713,6 +715,7 @@ class ImageItemPainter extends CustomPainter {
     final textStyle = const TextStyle(color: Color(0xFF2E8BFF), fontSize: 12);
     final pitchTextStyle = const TextStyle(color: Color(0xFF2E8BFF), fontSize: 24, backgroundColor: Colors.white);
     final bars = barsOverride ?? result.bars;
+    final basePitchAtIndex0 = PitchName.fromNoteOctave(NoteName.gSharp, 3);
 
     for (int i = 0; i < bars.length; i++) {
       final b = bars[i];
@@ -745,8 +748,9 @@ class ImageItemPainter extends CustomPainter {
 
       // 標上 index
       final pitchIndex = getBarIndex(result.gridLinesY, y0, y1);
+      final pitchName = basePitchAtIndex0.getNext(pitchIndex);
       final tp = TextPainter(
-        text: TextSpan(text: pitchIndex.toString(), style: pitchTextStyle),
+        text: TextSpan(text: pitchName.getDisplayName(), style: pitchTextStyle),
         textDirection: TextDirection.ltr,
       )..layout();
       tp.paint(canvas, Offset(x0, y0 - 18 / scale));

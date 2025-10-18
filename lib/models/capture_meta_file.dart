@@ -1,4 +1,4 @@
-import 'package:flutter_desktop_video_capturer/page.dart';
+import 'package:flutter_desktop_video_capturer/pages/video_capturer/page.dart';
 
 /// 擷取影片的 metadata 檔案
 class CaptureMetaFile {

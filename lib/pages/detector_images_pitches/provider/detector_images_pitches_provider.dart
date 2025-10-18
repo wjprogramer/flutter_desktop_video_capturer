@@ -52,15 +52,15 @@ class DetectorImagesPitchesProvider extends ChangeNotifier {
 
     final previousProcessed = tmpProcessed.map((e) => ImageResult.fromJson(e)).toList();
 
-    // _lastResult = res.copyWith(images: [
-    //   ...previousProcessed,
-    //   ...res.images.skip(previousProcessed.length),
-    // ]);
-    // notifyListeners();
+    _lastResult = res.copyWith(images: [
+      ...previousProcessed,
+      ...res.images.skip(previousProcessed.length),
+    ]);
+    notifyListeners();
 
-    final jsonList = <Map<String, dynamic>>[];
-    jsonList.addAll(res.images.map((image) => image.toJson()));
-    print(JsonEncoder.withIndent('    ').convert(jsonList));
+    // final jsonList = <Map<String, dynamic>>[];
+    // jsonList.addAll(res.images.map((image) => image.toJson()));
+    // print(JsonEncoder.withIndent('    ').convert(jsonList));
   }
 
   void setSelectedBarIndexOfImage(File f, int? barIndex) {
