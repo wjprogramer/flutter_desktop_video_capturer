@@ -2,11 +2,10 @@ import 'package:flutter/material.dart';
 import 'package:flutter_desktop_video_capturer/helpers/video_capturer/src/capture_segment.dart';
 import 'package:flutter_desktop_video_capturer/helpers/video_capturer/src/models.dart';
 import 'package:flutter_desktop_video_capturer/helpers/video_capturer/src/video_capturer_view_mixin.dart';
+import 'package:flutter_desktop_video_capturer/utilities/formatter.dart';
 import 'package:flutter_desktop_video_capturer/utils/toast.dart';
+import 'package:flutter_desktop_video_capturer/widgets/video_capturer/video_capturer_player.dart';
 import 'package:flutter_desktop_video_capturer/widgets/video_capturer/video_progress_and_rules_preview_slider.dart';
-import 'package:video_player/video_player.dart';
-
-import 'other.dart';
 
 class CapturerPage extends StatefulWidget {
   const CapturerPage({super.key});
@@ -20,17 +19,11 @@ class _CapturerPageState extends State<CapturerPage> with VideoCapturerViewMixin
 
   final List<String> _logs = [];
 
-  String? get _videoPath => videoCapturer.videoPath;
-
-  Rect? get _rectVideoPx => videoCapturer.rectVideoPx;
-
   List<CaptureRule> get _rules => videoCapturer.rules;
 
   List<Duration> get _stopPoints => videoCapturer.stopPoints;
 
   int get _defaultIntervalMs => videoCapturer.defaultIntervalMs;
-
-  Offset? _dragStartVideoPx;
 
   @override
   void dispose() {
@@ -38,123 +31,10 @@ class _CapturerPageState extends State<CapturerPage> with VideoCapturerViewMixin
     super.dispose();
   }
 
-  void _addLog(String text) {
-    setState(() {
-      _logs.insert(0, text);
-    });
-    _scrollController.jumpTo(0);
-  }
-
-  void _onPanStart(DragStartDetails d, Size paintSize) {
-    final v = videoCapturer.screenToVideo(d.localPosition, paintSize);
-    if (v == null) return;
-    _dragStartVideoPx = v;
-    videoCapturer.setRectVideoPx(null);
-    setState(() {});
-  }
-
-  void _onPanUpdate(DragUpdateDetails d, Size paintSize) {
-    if (_dragStartVideoPx == null) return;
-    final v = videoCapturer.screenToVideo(d.localPosition, paintSize);
-    if (v == null) return;
-    videoCapturer.setRectVideoPx(Rect.fromPoints(_dragStartVideoPx!, v));
-    setState(() {});
-  }
-
-  void _onPanEnd() {
-    setState(() {
-      _dragStartVideoPx = null; // 結束拖曳，保留 rectVideoPx
-    });
-    if (_rectVideoPx != null) {
-      final r = _rectVideoPx!;
-      debugPrint(
-        '選取(影片像素): x=${r.left.toStringAsFixed(1)}, y=${r.top.toStringAsFixed(1)}, '
-        'w=${r.width.toStringAsFixed(1)}, h=${r.height.toStringAsFixed(1)}',
-      );
-    }
-  }
-
-  // === 規則 / 停止點 ===
-  void _addRuleAtCurrent() {
-    final c = videoController;
-    if (c == null || _rectVideoPx == null) return;
-    final now = c.value.position;
-    videoCapturer.addRuleAt(now);
-    setState(() {});
-  }
-
-  void _addStopAtCurrent() {
-    final c = videoController;
-    if (c == null) return;
-    final now = c.value.position;
-    videoCapturer.addStopAt(now);
-    setState(() {});
-  }
-
-  void _removeRule(int index) {
-    videoCapturer.removeRuleAt(index);
-    setState(() {});
-  }
-
-  void _removeStop(int index) {
-    videoCapturer.removeStopAt(index);
-    setState(() {});
-  }
-
-  String _durationText(Duration d) {
-    final s = d.inSeconds;
-    final m = (s / 60).floor();
-    final ms = d.inMilliseconds.remainder(1000);
-
-    final mText = m.toString().padLeft(2, '0');
-    final sText = s.remainder(60).toString().padLeft(2, '0');
-    final msText = ms.toString().padLeft(3, '0');
-
-    return '$mText:$sText.$msText';
-  }
-
-  int _indexOfPrevCapture(List<Duration> times, Duration pos) {
-    return videoCapturer.indexOfPrevCapture(times, pos);
-  }
-
-  // 是否在 a 與 b 之間有停止點（嚴格介於之間；端點不算）
-  bool _hasStopBetween(Duration a, Duration b) {
-    if (_stopPoints.isEmpty) return false;
-    final lo = a <= b ? a : b;
-    final hi = a <= b ? b : a;
-    for (final s in _stopPoints) {
-      if (s > lo && s < hi) return true;
-    }
-    return false;
-  }
-
-  // 尋找「距離目前播放時間最近且中間沒有停止點」的 rule
-  CaptureRule? _nearestRuleFor(Duration pos) {
-    if (_rules.isEmpty) return null;
-    CaptureRule? best;
-    int bestAbs = 1 << 30;
-    for (final r in _rules) {
-      if (_hasStopBetween(r.start, pos)) continue; // 有停止點擋住則跳過
-      final diff = (r.start.inMilliseconds - pos.inMilliseconds).abs();
-      if (diff < bestAbs) {
-        bestAbs = diff;
-        best = r;
-      }
-    }
-    return best;
-  }
-
-  Future<void> _pickVideo() async {
-    await pickVideoForCapturer(
-      onSuccessAndBeforeUpdatePage: () {
-        _dragStartVideoPx = null;
-      },
-    );
-  }
-
   @override
   Widget build(BuildContext context) {
     final videoController = this.videoController;
+
     return Scaffold(
       appBar: AppBar(title: const Text('Video Frame Extractor'), actions: []),
       body: Column(
@@ -165,47 +45,14 @@ class _CapturerPageState extends State<CapturerPage> with VideoCapturerViewMixin
               padding: const EdgeInsets.all(16),
               child: ListView(
                 children: [
-                  ElevatedButton(onPressed: _pickVideo, child: const Text('選擇影片')),
-                  if (_videoPath != null) Text('影片: $_videoPath'),
+                  ElevatedButton(onPressed: pickVideoForCapturer, child: const Text('選擇影片')),
+                  if (videoCapturer.videoPath != null) Text('影片: ${videoCapturer.videoPath}'),
                   const SizedBox(height: 20),
-                  // ElevatedButton(onPressed: addSampleRule, child: const Text("加入範例擷取規則")),
-                  // Text("目前規則數量: ${rules.length}"),
                   const SizedBox(height: 20),
                   ElevatedButton(onPressed: tryRunCapturer, child: const Text('開始擷取')),
                   videoController == null
                       ? const Text('請先選擇影片')
-                      : Container(
-                          color: Colors.black,
-                          width: double.infinity,
-                          child: AspectRatio(
-                            aspectRatio: videoController.value.aspectRatio,
-                            child: Stack(
-                              children: [
-                                VideoPlayer(videoController),
-                                // 透明互動層
-                                Positioned.fill(
-                                  child: LayoutBuilder(
-                                    builder: (context, box) {
-                                      final paintSize = Size(box.maxWidth, box.maxHeight); // 當前顯示大小
-                                      return GestureDetector(
-                                        behavior: HitTestBehavior.opaque,
-                                        onPanStart: (d) => _onPanStart(d, paintSize),
-                                        onPanUpdate: (d) => _onPanUpdate(d, paintSize),
-                                        onPanEnd: (_) => _onPanEnd(),
-                                        child: CustomPaint(
-                                          painter: RectOnVideoPainter(
-                                            rectVideoPx: _rectVideoPx,
-                                            toScreen: (rv) => videoCapturer.videoRectToScreen(rv, paintSize),
-                                          ),
-                                        ),
-                                      );
-                                    },
-                                  ),
-                                ),
-                              ],
-                            ),
-                          ),
-                        ),
+                      : VideoCapturerPlayer(videoController: videoController, videoCapturer: videoCapturer),
                   if (videoController != null) ...[
                     ValueListenableBuilder(
                       valueListenable: videoController,
@@ -228,7 +75,7 @@ class _CapturerPageState extends State<CapturerPage> with VideoCapturerViewMixin
                                     icon: Icon(videoController.value.isPlaying ? Icons.pause : Icons.play_arrow),
                                   ),
                                   Text(
-                                    '${_durationText(videoController.value.position)} / ${_durationText(videoController.value.duration)}',
+                                    '${Formatter.durationText(videoController.value.position)} / ${Formatter.durationText(videoController.value.duration)}',
                                   ),
                                   // 快速設定預設 interval
                                   const Text('新規則間隔(ms): '),
@@ -250,13 +97,13 @@ class _CapturerPageState extends State<CapturerPage> with VideoCapturerViewMixin
                                   ),
                                   const SizedBox(width: 8),
                                   ElevatedButton.icon(
-                                    onPressed: _addRuleAtCurrent,
+                                    onPressed: addRuleAtCurrent,
                                     icon: const Icon(Icons.add_circle_outline),
                                     label: const Text('在目前時間加入開始點'),
                                   ),
                                   const SizedBox(width: 8),
                                   ElevatedButton.icon(
-                                    onPressed: _addStopAtCurrent,
+                                    onPressed: addStopAtCurrent,
                                     icon: const Icon(Icons.stop_circle_outlined),
                                     label: const Text('在目前時間加入停止點'),
                                   ),
@@ -269,41 +116,19 @@ class _CapturerPageState extends State<CapturerPage> with VideoCapturerViewMixin
                                 IconButton(
                                   tooltip: '上一個擷取點',
                                   icon: const Icon(Icons.skip_previous),
-                                  onPressed: () {
-                                    final segments = videoCapturer.buildSegments(videoController.value.duration);
-                                    final capTimes = videoCapturer.plannedCaptureTimesFromSegments(segments);
-                                    if (capTimes.isEmpty) return;
-                                    // 往前找（略小一點避免剛好在點上也算下一個）
-                                    final idx = _indexOfPrevCapture(
-                                      capTimes,
-                                      videoController.value.position - const Duration(milliseconds: 1),
-                                    );
-                                    if (idx >= 0) {
-                                      videoController.seekTo(capTimes[idx]);
-                                      setState(() {});
-                                    }
-                                  },
+                                  onPressed: goToPrevStepInCapturer,
                                 ),
                                 IconButton(
                                   tooltip: '下一個擷取點',
                                   icon: const Icon(Icons.skip_next),
-                                  onPressed: () {
-                                    final segments = videoCapturer.buildSegments(videoController.value.duration);
-                                    final capTimes = videoCapturer.plannedCaptureTimesFromSegments(segments);
-                                    if (capTimes.isEmpty) return;
-                                    final idx = _indexOfPrevCapture(capTimes, videoController.value.position);
-                                    if (idx + 1 < capTimes.length) {
-                                      videoController.seekTo(capTimes[idx + 1]);
-                                      setState(() {});
-                                    }
-                                  },
+                                  onPressed: goToNextStepInCapturer,
                                 ),
                                 const SizedBox(width: 8),
                                 ElevatedButton(
                                   onPressed: () {
                                     final pos = videoController.value.position;
 
-                                    final nearest = _nearestRuleFor(pos);
+                                    final nearest = videoCapturer.nearestRuleFor(pos);
                                     if (nearest == null) {
                                       showToast('找不到最近的開始點（中間有停止點或尚未建立規則）');
                                       return;
@@ -318,7 +143,7 @@ class _CapturerPageState extends State<CapturerPage> with VideoCapturerViewMixin
                                     videoCapturer.setDefaultIntervalMs(ms);
                                     setState(() {});
                                     showToast(
-                                      '已將預設間隔設為 $ms ms（最近開始點：${_durationText(nearest.start)} → 目前：${_durationText(pos)}）',
+                                      '已將預設間隔設為 $ms ms（最近開始點：${Formatter.durationText(nearest.start)} → 目前：${Formatter.durationText(pos)}）',
                                     );
 
                                     // 若你想同時把「最近那條 rule 的 interval」也一併更新，可解除下列註解：
@@ -344,15 +169,15 @@ class _CapturerPageState extends State<CapturerPage> with VideoCapturerViewMixin
                               itemBuilder: (context, i) {
                                 final r = _rules[i];
                                 // 即時計算這條規則的 end（顯示用）
-                                final seg = videoCapturer.buildSegments(
-                                  videoController.value.duration,
-                                ).firstWhere((s) => s.rule.start == r.start, orElse: () => CaptureSegment(rule: r));
+                                final seg = videoCapturer
+                                    .buildSegments(videoController.value.duration)
+                                    .firstWhere((s) => s.rule.start == r.start, orElse: () => CaptureSegment(rule: r));
                                 final showEnd = seg.rule.end;
                                 return ListTile(
                                   dense: true,
                                   leading: const Icon(Icons.play_circle, color: Colors.green),
                                   title: Text(
-                                    'Start ${_durationText(r.start)} → End ${showEnd != null ? _durationText(showEnd) : '依自動計算'}',
+                                    'Start ${Formatter.durationText(r.start)} → End ${showEnd != null ? Formatter.durationText(showEnd) : '依自動計算'}',
                                   ),
                                   subtitle: Row(
                                     children: [
@@ -375,7 +200,7 @@ class _CapturerPageState extends State<CapturerPage> with VideoCapturerViewMixin
                                       ),
                                     ],
                                   ),
-                                  trailing: IconButton(icon: const Icon(Icons.delete), onPressed: () => _removeRule(i)),
+                                  trailing: IconButton(icon: const Icon(Icons.delete), onPressed: () => removeRule(i)),
                                 );
                               },
                             ),
@@ -390,8 +215,8 @@ class _CapturerPageState extends State<CapturerPage> with VideoCapturerViewMixin
                                 return ListTile(
                                   dense: true,
                                   leading: const Icon(Icons.stop_circle, color: Colors.red),
-                                  title: Text('Stop @ ${_durationText(s)}'),
-                                  trailing: IconButton(icon: const Icon(Icons.delete), onPressed: () => _removeStop(i)),
+                                  title: Text('Stop @ ${Formatter.durationText(s)}'),
+                                  trailing: IconButton(icon: const Icon(Icons.delete), onPressed: () => removeStop(i)),
                                 );
                               },
                             ),

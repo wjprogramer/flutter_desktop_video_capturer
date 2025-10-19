@@ -2,7 +2,6 @@ import 'dart:io';
 
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
-import 'package:flutter_desktop_video_capturer/helpers/video_capturer/src/models.dart';
 import 'package:flutter_desktop_video_capturer/helpers/video_capturer/src/video_capturer.dart';
 import 'package:flutter_desktop_video_capturer/utils/toast.dart';
 import 'package:path/path.dart' as p;
@@ -18,7 +17,7 @@ mixin VideoCapturerViewMixin<T extends StatefulWidget> on State<T> {
 
   Rect? get _rectVideoPx => videoCapturer.rectVideoPx;
 
-  Future<void> pickVideoForCapturer({VoidCallback? onSuccessAndBeforeUpdatePage}) async {
+  Future<void> pickVideoForCapturer() async {
     final result = await FilePicker.platform.pickFiles(type: FileType.video);
     if (result == null || result.files.single.path == null) {
       return;
@@ -38,12 +37,74 @@ mixin VideoCapturerViewMixin<T extends StatefulWidget> on State<T> {
     final vs = c.value.size; // e.g., Size(1920, 1080) 或 300x300
 
     final videoSizePx = Size(vs.width.roundToDouble(), vs.height.roundToDouble());
-    onSuccessAndBeforeUpdatePage?.call();
 
     c.play();
 
     videoCapturer.setVideoPath(filePath, videoSizePx);
     setState(() {});
+  }
+
+  // === 規則 / 停止點 ===
+  void addRuleAtCurrent() {
+    final c = videoController;
+    if (c == null || videoCapturer.rectVideoPx == null) return;
+    final now = c.value.position;
+    videoCapturer.addRuleAt(now);
+    setState(() {});
+  }
+
+  void addStopAtCurrent() {
+    final c = videoController;
+    if (c == null) return;
+    final now = c.value.position;
+    videoCapturer.addStopAt(now);
+    setState(() {});
+  }
+
+  void removeRule(int index) {
+    videoCapturer.removeRuleAt(index);
+    setState(() {});
+  }
+
+  void removeStop(int index) {
+    videoCapturer.removeStopAt(index);
+    setState(() {});
+  }
+
+  /// 上一個擷取點
+  void goToPrevStepInCapturer() {
+    final videoController = this.videoController;
+    if (videoController == null) return;
+    final segments = videoCapturer.buildSegments(videoController.value.duration);
+    final capTimes = videoCapturer.plannedCaptureTimesFromSegments(segments);
+    if (capTimes.isEmpty) return;
+    // 往前找（略小一點避免剛好在點上也算下一個）
+    final idx = _indexOfPrevCapture(
+      capTimes,
+      videoController.value.position - const Duration(milliseconds: 1),
+    );
+    if (idx >= 0) {
+      videoController.seekTo(capTimes[idx]);
+      setState(() {});
+    }
+  }
+
+  /// 下一個擷取點
+  void goToNextStepInCapturer() {
+    final videoController = this.videoController;
+    if (videoController == null) return;
+    final segments = videoCapturer.buildSegments(videoController.value.duration);
+    final capTimes = videoCapturer.plannedCaptureTimesFromSegments(segments);
+    if (capTimes.isEmpty) return;
+    final idx = _indexOfPrevCapture(capTimes, videoController.value.position);
+    if (idx + 1 < capTimes.length) {
+      videoController.seekTo(capTimes[idx + 1]);
+      setState(() {});
+    }
+  }
+
+  int _indexOfPrevCapture(List<Duration> times, Duration pos) {
+    return videoCapturer.indexOfPrevCapture(times, pos);
   }
 
   Future<void> tryRunCapturer() async {

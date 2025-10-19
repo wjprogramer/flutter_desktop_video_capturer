@@ -416,6 +416,33 @@ class VideoCapturer {
     ];
   }
 
+  // 尋找「距離目前播放時間最近且中間沒有停止點」的 rule
+  CaptureRule? nearestRuleFor(Duration pos) {
+    if (_rules.isEmpty) return null;
+    CaptureRule? best;
+    int bestAbs = 1 << 30;
+    for (final r in _rules) {
+      if (_hasStopBetween(r.start, pos)) continue; // 有停止點擋住則跳過
+      final diff = (r.start.inMilliseconds - pos.inMilliseconds).abs();
+      if (diff < bestAbs) {
+        bestAbs = diff;
+        best = r;
+      }
+    }
+    return best;
+  }
+
+  /// 是否在 a 與 b 之間有停止點（嚴格介於之間；端點不算）
+  bool _hasStopBetween(Duration a, Duration b) {
+    if (_stopPoints.isEmpty) return false;
+    final lo = a <= b ? a : b;
+    final hi = a <= b ? b : a;
+    for (final s in _stopPoints) {
+      if (s > lo && s < hi) return true;
+    }
+    return false;
+  }
+
   /// For 乾燥花
   void addRulesAndStopPointsForDebug() {
     _rules.clear();
