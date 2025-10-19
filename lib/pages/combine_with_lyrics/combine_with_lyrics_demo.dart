@@ -58,8 +58,8 @@ class _CombineWithLyricsDemoPageState extends State<CombineWithLyricsDemoPage> {
     // 先記住目前選取的 pitch（若它會被平移，記下平移後的時間）
     final sel = _selectedPitch;
     final bool selWillMove = sel != null && sel.start >= start;
-    final Duration? selNewStart = selWillMove ? sel!.start + delta : null;
-    final Duration? selNewEnd = selWillMove ? sel!.end + delta : null;
+    final Duration? selNewStart = selWillMove ? sel.start + delta : null;
+    final Duration? selNewEnd = selWillMove ? sel.end + delta : null;
 
     setState(() {
       // 1) 做平移
@@ -112,13 +112,13 @@ class _CombineWithLyricsDemoPageState extends State<CombineWithLyricsDemoPage> {
     final results = <Widget>[];
 
     // Helper: 判斷 pitch 是否屬於某 line
-    bool _belongsToLine(_PitchData p, LyricsLine line) {
+    bool belongsToLine(_PitchData p, LyricsLine line) {
       return p.start >= line.startTime && p.start < line.endTime;
     }
 
     // 取得所有「沒有落在任何 line 內」的 pitch
     final unassigned = _pitchData.where((p) {
-      return !_lyricsLines.any((line) => _belongsToLine(p, line));
+      return !_lyricsLines.any((line) => belongsToLine(p, line));
     }).toList();
 
     // 依 start 排序，方便之後插入正確位置
@@ -341,7 +341,7 @@ class _PitchData {
 }
 
 class _PitchView extends StatelessWidget {
-  const _PitchView({super.key, required this.pitches, required this.line, this.selected, this.onSelect});
+  const _PitchView({required this.pitches, required this.line, this.selected, this.onSelect});
 
   final List<_PitchData> pitches;
   final LyricsLine line;

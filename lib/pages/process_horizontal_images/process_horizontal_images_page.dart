@@ -218,7 +218,7 @@ class _PanoramaCutterPageState extends State<PanoramaCutterPage> {
 
     final outDir = await getDownloadsDirectory() ?? await getApplicationDocumentsDirectory();
     final ts = DateTime.now().millisecondsSinceEpoch;
-    final outPath = p.join(outDir.path, 'panorama_${ts}.png');
+    final outPath = p.join(outDir.path, 'panorama_$ts.png');
     final outFile = File(outPath);
     await outFile.writeAsBytes(bytes);
 
@@ -518,7 +518,7 @@ class _PanoramaPainter extends CustomPainter {
     }
 
     // Segment indexes & rulers
-    final tp = (String s, Offset o, {Color color = Colors.black}) {
+    void tp(String s, Offset o, {Color color = Colors.black}) {
       final textPainter = TextPainter(
         text: TextSpan(
           style: TextStyle(color: color, fontSize: 12),
@@ -527,7 +527,7 @@ class _PanoramaPainter extends CustomPainter {
         textDirection: TextDirection.ltr,
       )..layout();
       textPainter.paint(canvas, o);
-    };
+    }
 
     for (int i = 0; i < segments.length; i++) {
       final seg = segments[i];

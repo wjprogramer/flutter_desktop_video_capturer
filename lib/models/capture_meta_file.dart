@@ -24,24 +24,24 @@ class CaptureMetaFile {
 
   factory CaptureMetaFile.fromJson(Map<String, dynamic> json) {
     return CaptureMetaFile(
-      videoPath: json["video"],
-      x: json["rect"]["x"],
-      y: json["rect"]["y"],
-      w: json["rect"]["w"],
-      h: json["rect"]["h"],
-      rules: (json["rules"] as List).map((r) => CaptureRule.fromJson(r)).toList(),
-      stopPoints: (json["stops_ms"] as List).map((e) => Duration(milliseconds: e)).toList(),
-      segments: (json["segments"] as List).map((s) => CapturedSegment.fromJson(s)).toList(),
+      videoPath: json['video'],
+      x: json['rect']['x'],
+      y: json['rect']['y'],
+      w: json['rect']['w'],
+      h: json['rect']['h'],
+      rules: (json['rules'] as List).map((r) => CaptureRule.fromJson(r)).toList(),
+      stopPoints: (json['stops_ms'] as List).map((e) => Duration(milliseconds: e)).toList(),
+      segments: (json['segments'] as List).map((s) => CapturedSegment.fromJson(s)).toList(),
     );
   }
 
   Map<String, dynamic> toJson() {
     return {
-      "video": videoPath,
-      "rect": {"x": x, "y": y, "w": w, "h": h},
-      "rules": rules.map((r) => r.toJson()).toList(),
-      "stops_ms": stopPoints.map((e) => e.inMilliseconds).toList(),
-      "segments": segments.map((s) => s.toJson()).toList(),
+      'video': videoPath,
+      'rect': {'x': x, 'y': y, 'w': w, 'h': h},
+      'rules': rules.map((r) => r.toJson()).toList(),
+      'stops_ms': stopPoints.map((e) => e.inMilliseconds).toList(),
+      'segments': segments.map((s) => s.toJson()).toList(),
     };
   }
 
@@ -53,7 +53,7 @@ class CaptureMetaFile {
   FrameTimeInfo getTimeInfoByIndex(int frameIndex) {
     final indices = _getSegmentIndexAndFrameIndexByFrameIndex(frameIndex);
     if (indices == null) {
-      throw Exception("Frame index out of range");
+      throw Exception('Frame index out of range');
     }
     final (segmentIndex, frameIndexInSegment) = indices;
     final segment = segments[segmentIndex];
@@ -97,23 +97,23 @@ class CapturedSegment {
 
   factory CapturedSegment.fromJson(Map<String, dynamic> json) {
     return CapturedSegment(
-      index: json["index"],
-      start: Duration(milliseconds: json["start_ms"]),
-      end: json["end_ms"] != null ? Duration(milliseconds: json["end_ms"]) : null,
-      interval: Duration(milliseconds: json["interval_ms"]),
-      outputDir: json["output_dir"],
-      plannedCaptureTimesMs: List<int>.from(json["planned_capture_times_ms"]),
+      index: json['index'],
+      start: Duration(milliseconds: json['start_ms']),
+      end: json['end_ms'] != null ? Duration(milliseconds: json['end_ms']) : null,
+      interval: Duration(milliseconds: json['interval_ms']),
+      outputDir: json['output_dir'],
+      plannedCaptureTimesMs: List<int>.from(json['planned_capture_times_ms']),
     );
   }
 
   Map<String, dynamic> toJson() {
     return {
-      "index": index,
-      "start_ms": start.inMilliseconds,
-      "end_ms": end?.inMilliseconds,
-      "interval_ms": interval.inMilliseconds,
-      "output_dir": outputDir,
-      "planned_capture_times_ms": plannedCaptureTimesMs,
+      'index': index,
+      'start_ms': start.inMilliseconds,
+      'end_ms': end?.inMilliseconds,
+      'interval_ms': interval.inMilliseconds,
+      'output_dir': outputDir,
+      'planned_capture_times_ms': plannedCaptureTimesMs,
     };
   }
 }

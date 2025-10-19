@@ -1,6 +1,6 @@
 import 'package:shared_preferences/shared_preferences.dart';
 
-const _gridLinesKey = "gridLines";
+const _gridLinesKey = 'gridLines';
 
 class MySharedPreference {
   MySharedPreference._(this._storage);

@@ -18,6 +18,10 @@ class MainFeaturePage extends StatefulWidget {
 class _MainFeaturePageState extends State<MainFeaturePage> {
   @override
   Widget build(BuildContext context) {
-    return Scaffold();
+    return Scaffold(
+      appBar: AppBar(
+        title: Text(''),
+      ),
+    );
   }
 }

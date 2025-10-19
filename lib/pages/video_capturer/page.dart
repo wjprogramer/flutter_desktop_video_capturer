@@ -22,24 +22,25 @@ class CaptureRule {
 
   factory CaptureRule.fromJson(Map<String, dynamic> json) {
     return CaptureRule(
-      start: Duration(milliseconds: json["start_ms"]),
-      end: json["end_ms"] != null ? Duration(milliseconds: json["end_ms"]) : null,
-      interval: Duration(milliseconds: json["interval_ms"]),
+      start: Duration(milliseconds: json['start_ms']),
+      end: json['end_ms'] != null ? Duration(milliseconds: json['end_ms']) : null,
+      interval: Duration(milliseconds: json['interval_ms']),
       rect: Rect.fromLTWH(
-        (json["rect"]["x"] as num).toDouble(),
-        (json["rect"]["y"] as num).toDouble(),
-        (json["rect"]["w"] as num).toDouble(),
-        (json["rect"]["h"] as num).toDouble(),
+        (json['rect']['x'] as num).toDouble(),
+        (json['rect']['y'] as num).toDouble(),
+        (json['rect']['w'] as num).toDouble(),
+        (json['rect']['h'] as num).toDouble(),
       ),
     );
   }
 
-  Map<String, dynamic> toJson() => {
-    "start_ms": start.inMilliseconds,
-    "end_ms": end?.inMilliseconds,
-    "interval_ms": interval.inMilliseconds,
-    "rect": {"x": rect.left.toInt(), "y": rect.top.toInt(), "w": rect.width.toInt(), "h": rect.height.toInt()},
-  };
+  Map<String, dynamic> toJson() =>
+      {
+        'start_ms': start.inMilliseconds,
+        'end_ms': end?.inMilliseconds,
+        'interval_ms': interval.inMilliseconds,
+        'rect': {'x': rect.left.toInt(), 'y': rect.top.toInt(), 'w': rect.width.toInt(), 'h': rect.height.toInt()},
+      };
 
   CaptureRule copyWith({Duration? start, ValueObject<Duration>? end, Duration? interval, Rect? rect}) {
     return CaptureRule(
@@ -197,8 +198,8 @@ class _CapturerPageState extends State<CapturerPage> {
     if (rectVideoPx != null) {
       final r = rectVideoPx!;
       debugPrint(
-        "選取(影片像素): x=${r.left.toStringAsFixed(1)}, y=${r.top.toStringAsFixed(1)}, "
-        "w=${r.width.toStringAsFixed(1)}, h=${r.height.toStringAsFixed(1)}",
+        '選取(影片像素): x=${r.left.toStringAsFixed(1)}, y=${r.top.toStringAsFixed(1)}, '
+            'w=${r.width.toStringAsFixed(1)}, h=${r.height.toStringAsFixed(1)}',
       );
     }
   }
@@ -289,12 +290,13 @@ class _CapturerPageState extends State<CapturerPage> {
 
     final segs = _buildSegments(_controller!.value.duration);
     if (segs.isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('沒有有效的擷取區段，請至少加入一個規則（開始點）')));
+      ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('沒有有效的擷取區段，請至少加入一個規則（開始點）')));
       return;
     }
 
     // crop=w:h:x:y
-    final crop = "crop=${rect.width.toInt()}:${rect.height.toInt()}:${rect.left.toInt()}:${rect.top.toInt()}";
+    final crop = 'crop=${rect.width.toInt()}:${rect.height.toInt()}:${rect.left.toInt()}:${rect.top.toInt()}';
 
     // 計算 fps (interval 毫秒 -> 1 / 秒數)
     final fps = 1 / (interval.inMilliseconds / 1000.0);
@@ -303,7 +305,7 @@ class _CapturerPageState extends State<CapturerPage> {
     final dir = Directory(outputDir);
     if (!dir.existsSync()) dir.createSync(recursive: true);
 
-    final projectDir = Directory(p.join(dir.path, "captures"));
+    final projectDir = Directory(p.join(dir.path, 'captures'));
     if (!projectDir.existsSync()) {
       projectDir.createSync(recursive: true);
     }
@@ -321,7 +323,7 @@ class _CapturerPageState extends State<CapturerPage> {
 
     _addLog('共 ${segs.length} 段要擷取');
 
-    final outputPattern = "${dir.path}${Platform.pathSeparator}frame_%04d.png";
+    final outputPattern = '${dir.path}${Platform.pathSeparator}frame_%04d.png';
 
     int segmentIndex = 0;
 
@@ -395,7 +397,8 @@ class _CapturerPageState extends State<CapturerPage> {
 
         // rename frame_%d
         final files = segDir.listSync().whereType<File>().where((f) => p.basename(f.path).startsWith('frame_'));
-        final sortedFiles = files.toList()..sort((a, b) => a.path.compareTo(b.path));
+        final sortedFiles = files.toList()
+          ..sort((a, b) => a.path.compareTo(b.path));
         for (final f in sortedFiles) {
           // padLeft(4, '0') => 避免後面排序有問題
           final newName = 'f_${imageIndex.toString().padLeft(4, '0')}${p.extension(f.path)}';
@@ -412,9 +415,9 @@ class _CapturerPageState extends State<CapturerPage> {
       // 計劃擷取時間（理想值）
       final plannedTimes = <int>[];
       for (
-        int t = r.start.inMilliseconds;
-        t <= (r.end?.inMilliseconds ?? r.start.inMilliseconds);
-        t += r.interval.inMilliseconds
+      int t = r.start.inMilliseconds;
+      t <= (r.end?.inMilliseconds ?? r.start.inMilliseconds);
+      t += r.interval.inMilliseconds
       ) {
         plannedTimes.add(t);
       }
@@ -465,13 +468,13 @@ class _CapturerPageState extends State<CapturerPage> {
     //   segmentIndex++;
     // }
 
-    final metaFile = File(p.join(projectDir.path, "meta.json"));
+    final metaFile = File(p.join(projectDir.path, 'meta.json'));
     // await metaFile.writeAsString(jsonEncode(meta));
     await metaFile.writeAsString(const JsonEncoder.withIndent(' ').convert(meta.toJson()));
     // print("Meta saved: ${metaFile.path}");
-    _addLog("Meta saved: ${metaFile.path}");
+    _addLog('Meta saved: ${metaFile.path}');
     if (context.mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text("擷取完成，輸出到 ${projectDir.path}")));
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('擷取完成，輸出到 ${projectDir.path}')));
     }
   }
 
@@ -536,7 +539,9 @@ class _CapturerPageState extends State<CapturerPage> {
 
   // 找到「<= 當前位置」的擷取點 index（不存在回傳 -1）
   int _indexOfPrevCapture(List<Duration> times, Duration pos) {
-    int lo = 0, hi = times.length - 1, ans = -1;
+    int lo = 0,
+        hi = times.length - 1,
+        ans = -1;
     while (lo <= hi) {
       final mid = (lo + hi) >> 1;
       if (times[mid] <= pos) {
@@ -580,7 +585,7 @@ class _CapturerPageState extends State<CapturerPage> {
   Widget build(BuildContext context) {
     final videoController = _controller;
     return Scaffold(
-      appBar: AppBar(title: const Text("Video Frame Extractor"), actions: []),
+      appBar: AppBar(title: const Text('Video Frame Extractor'), actions: []),
       body: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
@@ -589,8 +594,8 @@ class _CapturerPageState extends State<CapturerPage> {
               padding: const EdgeInsets.all(16),
               child: ListView(
                 children: [
-                  ElevatedButton(onPressed: pickVideo, child: const Text("選擇影片")),
-                  if (videoPath != null) Text("影片: $videoPath"),
+                  ElevatedButton(onPressed: pickVideo, child: const Text('選擇影片')),
+                  if (videoPath != null) Text('影片: $videoPath'),
                   const SizedBox(height: 20),
                   // ElevatedButton(onPressed: addSampleRule, child: const Text("加入範例擷取規則")),
                   // Text("目前規則數量: ${rules.length}"),
@@ -598,12 +603,12 @@ class _CapturerPageState extends State<CapturerPage> {
                   ElevatedButton(
                     onPressed: () async {
                       if (videoPath == null) {
-                        showToast("請先選擇影片");
+                        showToast('請先選擇影片');
                         return;
                       }
 
                       if (rectVideoPx == null) {
-                        showToast("請先選取擷取區域");
+                        showToast('請先選取擷取區域');
                         return;
                       }
 
@@ -611,7 +616,9 @@ class _CapturerPageState extends State<CapturerPage> {
                       final appDocDir = await getApplicationDocumentsDirectory();
                       final now = DateTime.now();
                       final middle =
-                          "${now.year}${now.month.toString().padLeft(2, '0')}${now.day.toString().padLeft(2, '0')}_${now.hour.toString().padLeft(2, '0')}${now.minute.toString().padLeft(2, '0')}${now.second.toString().padLeft(2, '0')}";
+                          "${now.year}${now.month.toString().padLeft(2, '0')}${now.day.toString().padLeft(2, '0')}_${now
+                          .hour.toString().padLeft(2, '0')}${now.minute.toString().padLeft(2, '0')}${now.second
+                          .toString().padLeft(2, '0')}";
                       final outputPath = p.join(appDocDir.path, 'export_${middle}_$videoName');
 
                       runCapture(
@@ -622,42 +629,42 @@ class _CapturerPageState extends State<CapturerPage> {
                         rect: rectVideoPx!, //Rect.fromLTWH(0, 0, 2160, 1440),
                       );
                     },
-                    child: const Text("開始擷取"),
+                    child: const Text('開始擷取'),
                   ),
                   videoController == null
-                      ? const Text("請先選擇影片")
+                      ? const Text('請先選擇影片')
                       : Container(
-                          color: Colors.black,
-                          width: double.infinity,
-                          child: AspectRatio(
-                            aspectRatio: videoController.value.aspectRatio,
-                            child: Stack(
-                              children: [
-                                VideoPlayer(videoController),
-                                // 透明互動層
-                                Positioned.fill(
-                                  child: LayoutBuilder(
-                                    builder: (context, box) {
-                                      final paintSize = Size(box.maxWidth, box.maxHeight); // 當前顯示大小
-                                      return GestureDetector(
-                                        behavior: HitTestBehavior.opaque,
-                                        onPanStart: (d) => _onPanStart(d, paintSize),
-                                        onPanUpdate: (d) => _onPanUpdate(d, paintSize),
-                                        onPanEnd: (_) => _onPanEnd(),
-                                        child: CustomPaint(
-                                          painter: RectOnVideoPainter(
-                                            rectVideoPx: rectVideoPx,
-                                            toScreen: (rv) => _videoRectToScreen(rv, paintSize),
-                                          ),
-                                        ),
-                                      );
-                                    },
+                    color: Colors.black,
+                    width: double.infinity,
+                    child: AspectRatio(
+                      aspectRatio: videoController.value.aspectRatio,
+                      child: Stack(
+                        children: [
+                          VideoPlayer(videoController),
+                          // 透明互動層
+                          Positioned.fill(
+                            child: LayoutBuilder(
+                              builder: (context, box) {
+                                final paintSize = Size(box.maxWidth, box.maxHeight); // 當前顯示大小
+                                return GestureDetector(
+                                  behavior: HitTestBehavior.opaque,
+                                  onPanStart: (d) => _onPanStart(d, paintSize),
+                                  onPanUpdate: (d) => _onPanUpdate(d, paintSize),
+                                  onPanEnd: (_) => _onPanEnd(),
+                                  child: CustomPaint(
+                                    painter: RectOnVideoPainter(
+                                      rectVideoPx: rectVideoPx,
+                                      toScreen: (rv) => _videoRectToScreen(rv, paintSize),
+                                    ),
                                   ),
-                                ),
-                              ],
+                                );
+                              },
                             ),
                           ),
-                        ),
+                        ],
+                      ),
+                    ),
+                  ),
                   if (videoController != null) ...[
                     ValueListenableBuilder(
                       valueListenable: videoController,
@@ -680,7 +687,8 @@ class _CapturerPageState extends State<CapturerPage> {
                                     icon: Icon(videoController.value.isPlaying ? Icons.pause : Icons.play_arrow),
                                   ),
                                   Text(
-                                    '${_durationText(videoController.value.position)} / ${_durationText(videoController.value.duration)}',
+                                    '${_durationText(videoController.value.position)} / ${_durationText(
+                                        videoController.value.duration)}',
                                   ),
                                   // 快速設定預設 interval
                                   const Text('新規則間隔(ms): '),
@@ -755,19 +763,20 @@ class _CapturerPageState extends State<CapturerPage> {
 
                                     final nearest = _nearestRuleFor(pos);
                                     if (nearest == null) {
-                                      showToast("找不到最近的開始點（中間有停止點或尚未建立規則）");
+                                      showToast('找不到最近的開始點（中間有停止點或尚未建立規則）');
                                       return;
                                     }
 
                                     final ms = (pos - nearest.start).inMilliseconds.abs();
                                     if (ms <= 0) {
-                                      showToast("目前時間與最近開始點相同，無法推算間隔");
+                                      showToast('目前時間與最近開始點相同，無法推算間隔');
                                       return;
                                     }
 
                                     setState(() => _defaultIntervalMs = ms);
                                     showToast(
-                                      "已將預設間隔設為 $ms ms（最近開始點：${_durationText(nearest.start)} → 目前：${_durationText(pos)}）",
+                                      '已將預設間隔設為 $ms ms（最近開始點：${_durationText(
+                                          nearest.start)} → 目前：${_durationText(pos)}）',
                                     );
 
                                     // 若你想同時把「最近那條 rule 的 interval」也一併更新，可解除下列註解：
@@ -824,9 +833,9 @@ class _CapturerPageState extends State<CapturerPage> {
 
                                     double xFor(Duration t) =>
                                         (t.inMilliseconds / videoController.value.duration.inMilliseconds) *
-                                        constraints.maxWidth;
+                                            constraints.maxWidth;
 
-                                    Future<void> _jumpToNearestCapture(Offset localPos) async {
+                                    Future<void> jumpToNearestCapture(Offset localPos) async {
                                       if (capTimes.isEmpty) return;
                                       final dx = localPos.dx;
                                       const tolPx = 6.0; // 點擊容忍像素
@@ -859,7 +868,7 @@ class _CapturerPageState extends State<CapturerPage> {
                                         ),
                                         GestureDetector(
                                           behavior: HitTestBehavior.opaque,
-                                          onTapDown: (d) => _jumpToNearestCapture(d.localPosition),
+                                          onTapDown: (d) => jumpToNearestCapture(d.localPosition),
                                         ),
                                       ],
                                     );
@@ -885,7 +894,9 @@ class _CapturerPageState extends State<CapturerPage> {
                                   dense: true,
                                   leading: const Icon(Icons.play_circle, color: Colors.green),
                                   title: Text(
-                                    'Start ${_durationText(r.start)} → End ${showEnd != null ? _durationText(showEnd) : '依自動計算'}',
+                                    'Start ${_durationText(r.start)} → End ${showEnd != null
+                                        ? _durationText(showEnd)
+                                        : '依自動計算'}',
                                   ),
                                   subtitle: Row(
                                     children: [
@@ -976,18 +987,20 @@ class _CapturerPageState extends State<CapturerPage> {
                         // 微調時間
                         ...[-1, 1]
                             .map(
-                              (sign) => [1000, 500, 300, 100, 50, 10, 1].map(
-                                (ms) => ElevatedButton(
-                                  onPressed: () {
-                                    var start = videoController.value.position;
-                                    start += Duration(milliseconds: sign * ms);
-                                    videoController.seekTo(start);
-                                    setState(() {});
-                                  },
-                                  child: Text('${sign < 0 ? '-' : '+'}$ms ms'),
-                                ),
+                              (sign) =>
+                              [1000, 500, 300, 100, 50, 10, 1].map(
+                                    (ms) =>
+                                    ElevatedButton(
+                                      onPressed: () {
+                                        var start = videoController.value.position;
+                                        start += Duration(milliseconds: sign * ms);
+                                        videoController.seekTo(start);
+                                        setState(() {});
+                                      },
+                                      child: Text('${sign < 0 ? '-' : '+'}$ms ms'),
+                                    ),
                               ),
-                            )
+                        )
                             .expand((e) => e),
                       ],
                     ),
@@ -1001,22 +1014,22 @@ class _CapturerPageState extends State<CapturerPage> {
 
                             rules.addAll([
                               CaptureRule.fromJson({
-                                "start_ms": 23859,
-                                "end_ms": null,
-                                "interval_ms": 3322,
-                                "rect": {"x": 0, "y": 155, "w": 1920, "h": 260},
+                                'start_ms': 23859,
+                                'end_ms': null,
+                                'interval_ms': 3322,
+                                'rect': {'x': 0, 'y': 155, 'w': 1920, 'h': 260},
                               }),
                               CaptureRule.fromJson({
-                                "start_ms": 119641,
-                                "end_ms": null,
-                                "interval_ms": 3322,
-                                "rect": {"x": 0, "y": 155, "w": 1920, "h": 260},
+                                'start_ms': 119641,
+                                'end_ms': null,
+                                'interval_ms': 3322,
+                                'rect': {'x': 0, 'y': 155, 'w': 1920, 'h': 260},
                               }),
                               CaptureRule.fromJson({
-                                "start_ms": 209646,
-                                "end_ms": null,
-                                "interval_ms": 3322,
-                                "rect": {"x": 0, "y": 155, "w": 1920, "h": 260},
+                                'start_ms': 209646,
+                                'end_ms': null,
+                                'interval_ms': 3322,
+                                'rect': {'x': 0, 'y': 155, 'w': 1920, 'h': 260},
                               }),
                             ]);
                             stopPoints.addAll([
@@ -1047,7 +1060,7 @@ class _CapturerPageState extends State<CapturerPage> {
                 itemBuilder: (context, index) {
                   return Text(
                     _logs[index],
-                    style: const TextStyle(color: Colors.greenAccent, fontFamily: "monospace", fontSize: 12),
+                    style: const TextStyle(color: Colors.greenAccent, fontFamily: 'monospace', fontSize: 12),
                   );
                 },
               ),
@@ -1075,10 +1088,14 @@ class _MarkersPainter extends CustomPainter {
 
   @override
   void paint(Canvas canvas, Size size) {
-    final base = Paint()..color = Colors.grey.shade300;
-    final startPaint = Paint()..color = Colors.green;
-    final stopPaint = Paint()..color = Colors.red;
-    final capPaint = Paint()..color = Colors.black87;
+    final base = Paint()
+      ..color = Colors.grey.shade300;
+    final startPaint = Paint()
+      ..color = Colors.green;
+    final stopPaint = Paint()
+      ..color = Colors.red;
+    final capPaint = Paint()
+      ..color = Colors.black87;
 
     // 底色（已由父容器提供灰色，可略）
     canvas.drawRect(Offset.zero & size, base);
@@ -1119,7 +1136,8 @@ class _MarkersPainter extends CustomPainter {
         style: const TextStyle(fontSize: 10, color: Colors.black87),
       ),
       textDirection: TextDirection.ltr,
-    )..layout(maxWidth: 80);
+    )
+      ..layout(maxWidth: 80);
     tp.paint(canvas, pos);
   }
 

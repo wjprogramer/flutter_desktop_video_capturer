@@ -19,19 +19,19 @@ class DetectPitchesExporter {
     for (var i = 0; i < inputFiles.length; i++) {
       final f = inputFiles[i];
       if (!f.existsSync()) {
-        throw Exception("Input file does not exist: ${f.path}");
+        throw Exception('Input file does not exist: ${f.path}');
       }
 
       // final timeInfo = metaFile.getTimeInfoByIndex(i);
       final segmentIndex = metaFile.getSegmentIndex(i);
       if (segmentIndex == null) {
-        throw Exception("Frame index out of range: $i");
+        throw Exception('Frame index out of range: $i');
       }
       final segment = metaFile.segments[segmentIndex];
 
       final imageResult = previousStepResult.getResult(f);
       if (imageResult == null) {
-        throw Exception("No detection result for image: ${f.path}");
+        throw Exception('No detection result for image: ${f.path}');
       }
 
       final imgW = imageResult.width.toDouble();
