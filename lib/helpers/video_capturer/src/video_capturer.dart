@@ -387,7 +387,6 @@ class VideoCapturer {
     final metaFile = File(p.join(projectDir.path, 'meta.json'));
     // await metaFile.writeAsString(jsonEncode(meta));
     await metaFile.writeAsString(const JsonEncoder.withIndent(' ').convert(meta.toJson()));
-    // print("Meta saved: ${metaFile.path}");
     print('Meta saved: ${metaFile.path}');
     print('擷取完成，輸出到 ${projectDir.path}');
   }
@@ -415,5 +414,37 @@ class VideoCapturer {
       'crop=$w:$h:$x:$y,fps=$fps',
       outputPattern,
     ];
+  }
+
+  /// For 乾燥花
+  void addRulesAndStopPointsForDebug() {
+    _rules.clear();
+    _stopPoints.clear();
+
+    _rules.addAll([
+      CaptureRule.fromJson({
+        'start_ms': 23859,
+        'end_ms': null,
+        'interval_ms': 3322,
+        'rect': {'x': 0, 'y': 155, 'w': 1920, 'h': 260},
+      }),
+      CaptureRule.fromJson({
+        'start_ms': 119641,
+        'end_ms': null,
+        'interval_ms': 3322,
+        'rect': {'x': 0, 'y': 155, 'w': 1920, 'h': 260},
+      }),
+      CaptureRule.fromJson({
+        'start_ms': 209646,
+        'end_ms': null,
+        'interval_ms': 3322,
+        'rect': {'x': 0, 'y': 155, 'w': 1920, 'h': 260},
+      }),
+    ]);
+    _stopPoints.addAll([
+      Duration(milliseconds: 107752),
+      Duration(milliseconds: 202981),
+      Duration(milliseconds: 266308),
+    ]);
   }
 }
