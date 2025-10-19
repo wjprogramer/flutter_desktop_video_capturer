@@ -1,0 +1,1 @@
+export 'src/value_object.dart';

@@ -1,3 +1,4 @@
+import 'package:flutter_desktop_video_capturer/helpers/video_capturer/video_capturer.dart';
 import 'package:flutter_desktop_video_capturer/pages/video_capturer/page.dart';
 
 /// 擷取影片的 metadata 檔案
