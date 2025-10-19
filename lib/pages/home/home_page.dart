@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_desktop_video_capturer/extensions/collection.dart';
 import 'package:flutter_desktop_video_capturer/pages/combine_with_lyrics/combine_with_lyrics_demo.dart';
 import 'package:flutter_desktop_video_capturer/pages/detector_images_pitches/detector_images_pitches_page.dart';
 import 'package:flutter_desktop_video_capturer/pages/process_horizontal_images/process_horizontal_images_page.dart';
@@ -9,32 +10,61 @@ class HomePage extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final items = <_Item>[
-      _Item(name: '擷取影片', page: (_) => CapturerPage()),
-      _Item(name: '組合、重新裁切圖片', page: (_) => PanoramaCutterPage()),
-      _Item(name: '偵測圖片上的音階', page: (_) => DetectorImagesPitchesPage()),
-      _Item(name: '結合歌詞與音階', page: (_) => CombineWithLyricsDemoPage()),
+    final groups = <_Group>[
+      _Group(name: '主要功能', items: []),
+      _Group(
+        name: '子功能',
+        items: <_Item>[
+          _Item(name: '擷取影片', page: (_) => CapturerPage()),
+          _Item(name: '組合、重新裁切圖片', page: (_) => PanoramaCutterPage()),
+          _Item(name: '偵測圖片上的音階', page: (_) => DetectorImagesPitchesPage()),
+          _Item(name: '結合歌詞與音階', page: (_) => CombineWithLyricsDemoPage()),
+        ],
+      ),
     ];
 
     return Scaffold(
       appBar: AppBar(title: Text('Menu')),
-      body: ListView.separated(
-        itemBuilder: (context, index) {
-          final item = items[index];
-          return ListTile(
-            title: Text(item.name),
-            onTap: item.page == null
-                ? null
-                : () {
-                    Navigator.of(context).push(MaterialPageRoute(builder: item.page!));
-                  },
+      body: ListView.builder(
+        itemCount: groups.length,
+        itemBuilder: (context, groupIndex) {
+          final group = groups[groupIndex];
+          return Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Padding(
+                padding: const EdgeInsets.all(16.0),
+                child: Text(group.name, style: Theme.of(context).textTheme.titleLarge),
+              ),
+              ...group.items
+                  .map<Widget>((item) {
+                    return ListTile(
+                      title: Text(item.name),
+                      onTap: item.page == null
+                          ? null
+                          : () {
+                              Navigator.of(context).push(MaterialPageRoute(builder: item.page!));
+                            },
+                    );
+                  })
+                  .joinWith(
+                    Container(
+                      decoration: BoxDecoration(border: Border(bottom: Divider.createBorderSide(context))),
+                    ),
+                  ),
+            ],
           );
         },
-        separatorBuilder: (context, index) => Divider(height: 1),
-        itemCount: items.length,
       ),
     );
   }
+}
+
+class _Group {
+  const _Group({required this.name, required this.items});
+
+  final String name;
+  final List<_Item> items;
 }
 
 class _Item {
