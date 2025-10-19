@@ -1,11 +1,9 @@
 import 'dart:io';
 import 'dart:math' as math;
-import 'dart:typed_data';
 import 'dart:ui' as ui;
 
 import 'package:bot_toast/bot_toast.dart';
 import 'package:file_picker/file_picker.dart';
-import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:path/path.dart' as p;
@@ -14,13 +12,15 @@ import 'package:path_provider/path_provider.dart';
 class LoadedImage {
   final String path;
   final ui.Image image;
+
   LoadedImage(this.path, this.image);
 }
 
 class Segment {
   double startX; // global X (in image pixels)
-  double endX;   // global X (in image pixels)
+  double endX; // global X (in image pixels)
   bool keep;
+
   Segment(this.startX, this.endX, this.keep);
 
   double get width => endX - startX;
@@ -61,10 +61,7 @@ class _PanoramaCutterPageState extends State<PanoramaCutterPage> {
       if (result == null || result.files.isEmpty) return;
 
       // Sort by file name
-      final files = result.files
-          .where((f) => f.path != null)
-          .map((f) => File(f.path!))
-          .toList()
+      final files = result.files.where((f) => f.path != null).map((f) => File(f.path!)).toList()
         ..sort((a, b) => p.basename(a.path).compareTo(p.basename(b.path)));
 
       final List<LoadedImage> loaded = [];
@@ -146,7 +143,8 @@ class _PanoramaCutterPageState extends State<PanoramaCutterPage> {
     const pick = 8.0; // pick radius in preview pixels after scale applied
     double bestD = double.infinity;
     int bestIdx = -1;
-    for (int i = 1; i < cuts.length - 1; i++) { // interior only
+    for (int i = 1; i < cuts.length - 1; i++) {
+      // interior only
       final c = cuts[i];
       final d = (c - globalX).abs();
       if (d < bestD) {
@@ -241,16 +239,13 @@ class _PanoramaCutterPageState extends State<PanoramaCutterPage> {
     }
 
     final outDir = await getDownloadsDirectory() ?? await getApplicationDocumentsDirectory();
-    final ts = DateTime
-        .now()
-        .millisecondsSinceEpoch;
+    final ts = DateTime.now().millisecondsSinceEpoch;
 
     int index = 0;
     for (final seg in kept) {
       final recorder = ui.PictureRecorder();
       final canvas = Canvas(recorder);
       final paint = Paint();
-
 
       double start = seg.startX;
       double remaining = seg.width;
@@ -261,7 +256,6 @@ class _PanoramaCutterPageState extends State<PanoramaCutterPage> {
         final imgStartX = idx * imgW;
         final localX = start - imgStartX;
         final take = math.min(remaining, imgW - localX);
-
 
         final src = Rect.fromLTWH(localX, 0, take, imgH);
         final dst = Rect.fromLTWH(dx, 0, take, imgH);
@@ -298,17 +292,9 @@ class _PanoramaCutterPageState extends State<PanoramaCutterPage> {
       appBar: AppBar(
         title: const Text('Panorama Cutter (Windows / macOS)'),
         actions: [
-          IconButton(
-            tooltip: '開啟圖片',
-            onPressed: _pickImages,
-            icon: const Icon(Icons.folder_open),
-          ),
+          IconButton(tooltip: '開啟圖片', onPressed: _pickImages, icon: const Icon(Icons.folder_open)),
           const SizedBox(width: 8),
-          IconButton(
-            tooltip: '重置切割點',
-            onPressed: canEdit ? _resetCuts : null,
-            icon: const Icon(Icons.refresh),
-          ),
+          IconButton(tooltip: '重置切割點', onPressed: canEdit ? _resetCuts : null, icon: const Icon(Icons.refresh)),
           const SizedBox(width: 8),
           IconButton(
             tooltip: '匯出 (產生新圖)',
@@ -334,55 +320,53 @@ class _PanoramaCutterPageState extends State<PanoramaCutterPage> {
             child: images.isEmpty
                 ? const Center(child: Text('請先以檔名排序選取多張尺寸相同的圖片 (水平接續)'))
                 : MouseRegion(
-              onHover: (e) {
-                final pos = _previewToGlobalX(e.localPosition.dx);
-                setState(() => mouseXPreview = pos);
-              },
-              child: ScrollConfiguration(
-                behavior: const _NoGlowBehavior(),
-                child: SingleChildScrollView(
-                  controller: hScroll,
-                  scrollDirection: Axis.horizontal,
-                  child: GestureDetector(
-                    behavior: HitTestBehavior.opaque,
-                    onTapUp: (d) {
-                      if (!canEdit) return;
-                      final gx = _previewToGlobalX(d.localPosition.dx);
-                      // if (d.kind == PointerDeviceKind.mouse &&
-                      //     (d.buttons & kSecondaryMouseButton) != 0) {
-                      //   // right click -> remove cut near
-                      //   _removeCutNear(gx);
-                      // } else
-                        if (HardwareKeyboard.instance.logicalKeysPressed
-                          .contains(LogicalKeyboardKey.shiftLeft) ||
-                          HardwareKeyboard.instance.logicalKeysPressed
-                              .contains(LogicalKeyboardKey.shiftRight)) {
-                        _toggleSegmentAt(gx);
-                      } else {
-                        _addCutAt(gx);
-                      }
+                    onHover: (e) {
+                      final pos = _previewToGlobalX(e.localPosition.dx);
+                      setState(() => mouseXPreview = pos);
                     },
-                    onSecondaryTapUp: (d) {
-                      if (!canEdit) return;
-                      final gx = _previewToGlobalX(d.localPosition.dx);
-                      _removeCutNear(gx);
-                    },
-                    child: CustomPaint(
-                      size: Size(totalWidth * scale, imgH * scale + 40),
-                      painter: _PanoramaPainter(
-                        images: images,
-                        imgW: imgW,
-                        imgH: imgH,
-                        scale: scale,
-                        cuts: cuts,
-                        segments: segments,
-                        mouseX: mouseXPreview,
+                    child: ScrollConfiguration(
+                      behavior: const _NoGlowBehavior(),
+                      child: SingleChildScrollView(
+                        controller: hScroll,
+                        scrollDirection: Axis.horizontal,
+                        child: GestureDetector(
+                          behavior: HitTestBehavior.opaque,
+                          onTapUp: (d) {
+                            if (!canEdit) return;
+                            final gx = _previewToGlobalX(d.localPosition.dx);
+                            // if (d.kind == PointerDeviceKind.mouse &&
+                            //     (d.buttons & kSecondaryMouseButton) != 0) {
+                            //   // right click -> remove cut near
+                            //   _removeCutNear(gx);
+                            // } else
+                            if (HardwareKeyboard.instance.logicalKeysPressed.contains(LogicalKeyboardKey.shiftLeft) ||
+                                HardwareKeyboard.instance.logicalKeysPressed.contains(LogicalKeyboardKey.shiftRight)) {
+                              _toggleSegmentAt(gx);
+                            } else {
+                              _addCutAt(gx);
+                            }
+                          },
+                          onSecondaryTapUp: (d) {
+                            if (!canEdit) return;
+                            final gx = _previewToGlobalX(d.localPosition.dx);
+                            _removeCutNear(gx);
+                          },
+                          child: CustomPaint(
+                            size: Size(totalWidth * scale, imgH * scale + 40),
+                            painter: _PanoramaPainter(
+                              images: images,
+                              imgW: imgW,
+                              imgH: imgH,
+                              scale: scale,
+                              cuts: cuts,
+                              segments: segments,
+                              mouseX: mouseXPreview,
+                            ),
+                          ),
+                        ),
                       ),
                     ),
                   ),
-                ),
-              ),
-            ),
           ),
         ],
       ),
@@ -458,7 +442,9 @@ class _Toolbar extends StatelessWidget {
 class _Legend extends StatelessWidget {
   final Color color;
   final String label;
+
   const _Legend({required this.color, required this.label});
+
   @override
   Widget build(BuildContext context) {
     return Row(
@@ -534,7 +520,10 @@ class _PanoramaPainter extends CustomPainter {
     // Segment indexes & rulers
     final tp = (String s, Offset o, {Color color = Colors.black}) {
       final textPainter = TextPainter(
-        text: TextSpan(style: TextStyle(color: color, fontSize: 12), text: s),
+        text: TextSpan(
+          style: TextStyle(color: color, fontSize: 12),
+          text: s,
+        ),
         textDirection: TextDirection.ltr,
       )..layout();
       textPainter.paint(canvas, o);
@@ -573,6 +562,7 @@ class _PanoramaPainter extends CustomPainter {
 
 class _NoGlowBehavior extends ScrollBehavior {
   const _NoGlowBehavior();
+
   @override
   Widget buildViewportChrome(BuildContext context, Widget child, AxisDirection axisDirection) {
     return child;

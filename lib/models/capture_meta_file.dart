@@ -119,10 +119,7 @@ class CapturedSegment {
 }
 
 class FrameTimeInfo {
-  const FrameTimeInfo({
-    required this.startTime,
-    required this.duration,
-  });
+  const FrameTimeInfo({required this.startTime, required this.duration});
 
   final Duration startTime;
   final Duration duration;

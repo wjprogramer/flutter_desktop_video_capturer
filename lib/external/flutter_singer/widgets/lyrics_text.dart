@@ -1,10 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_desktop_video_capturer/external/flutter_singer/models/nodes.dart';
 
-List<InlineSpan> buildInlineSpans(BuildContext context, {
-  required LyricsNode data,
-  TextStyle? style,
-}) {
+List<InlineSpan> buildInlineSpans(BuildContext context, {required LyricsNode data, TextStyle? style}) {
   final node = data;
   final textDirection = Directionality.maybeOf(context);
   final defaultTextStyle = DefaultTextStyle.of(context).style;
@@ -16,23 +13,18 @@ List<InlineSpan> buildInlineSpans(BuildContext context, {
     effectiveTextStyle = defaultTextStyle.merge(effectiveTextStyle);
   }
   if (boldTextOverride) {
-    effectiveTextStyle = effectiveTextStyle
-        .merge(const TextStyle(fontWeight: FontWeight.bold));
+    effectiveTextStyle = effectiveTextStyle.merge(const TextStyle(fontWeight: FontWeight.bold));
   }
   assert(effectiveTextStyle.fontSize != null, 'must be has a font size.');
-  final defaultRubyTextStyle = effectiveTextStyle.merge(
-    TextStyle(fontSize: effectiveTextStyle.fontSize! / 1.5),
-  );
+  final defaultRubyTextStyle = effectiveTextStyle.merge(TextStyle(fontSize: effectiveTextStyle.fontSize! / 1.5));
 
   // rt text style
   var effectiveRubyTextStyle = node.style;
   if (effectiveRubyTextStyle == null || effectiveRubyTextStyle.inherit) {
-    effectiveRubyTextStyle =
-        defaultRubyTextStyle.merge(effectiveRubyTextStyle);
+    effectiveRubyTextStyle = defaultRubyTextStyle.merge(effectiveRubyTextStyle);
   }
   if (boldTextOverride) {
-    effectiveRubyTextStyle = effectiveRubyTextStyle
-        .merge(const TextStyle(fontWeight: FontWeight.bold));
+    effectiveRubyTextStyle = effectiveRubyTextStyle.merge(const TextStyle(fontWeight: FontWeight.bold));
   }
 
   final rubyList = <String>[];
@@ -69,51 +61,30 @@ List<InlineSpan> buildInlineSpans(BuildContext context, {
       final rubyWidth = _measurementWidth(
         rt,
         effectiveRubyTextStyle,
-        textDirection:
-        textDirection ?? TextDirection.ltr,
+        textDirection: textDirection ?? TextDirection.ltr,
       );
-      final textWidth = _measurementWidth(
-        text,
-        effectiveTextStyle,
-        textDirection:
-        textDirection ?? TextDirection.ltr,
-      );
+      final textWidth = _measurementWidth(text, effectiveTextStyle, textDirection: textDirection ?? TextDirection.ltr);
 
       if (textWidth > rubyWidth) {
         final newLetterSpacing = (textWidth - rubyWidth) / rt.length;
-        effectiveRubyTextStyle = effectiveRubyTextStyle
-            .merge(TextStyle(letterSpacing: newLetterSpacing));
+        effectiveRubyTextStyle = effectiveRubyTextStyle.merge(TextStyle(letterSpacing: newLetterSpacing));
       } else {
         final newLetterSpacing = (rubyWidth - textWidth) / text.length;
-        effectiveTextStyle = effectiveTextStyle
-            .merge(TextStyle(letterSpacing: newLetterSpacing));
+        effectiveTextStyle = effectiveTextStyle.merge(TextStyle(letterSpacing: newLetterSpacing));
       }
     }
 
     if (rt == null) {
-      spans.add(
-        TextSpan(
-          text: ruby,
-          style: effectiveTextStyle,
-        ),
-      );
+      spans.add(TextSpan(text: ruby, style: effectiveTextStyle));
     } else {
       spans.add(
         WidgetSpan(
           child: Column(
             children: [
-              Text(
-                rt,
-                textAlign: TextAlign.center,
-                style: effectiveRubyTextStyle,
-              ),
-              Text(
-                ruby,
-                textAlign: TextAlign.center,
-                style: effectiveTextStyle,
-                ),
+              Text(rt, textAlign: TextAlign.center, style: effectiveRubyTextStyle),
+              Text(ruby, textAlign: TextAlign.center, style: effectiveTextStyle),
             ],
-          )
+          ),
         ),
       );
     }
@@ -123,7 +94,8 @@ List<InlineSpan> buildInlineSpans(BuildContext context, {
 }
 
 class LyricsText extends StatelessWidget {
-  const LyricsText(this.data, {
+  const LyricsText(
+    this.data, {
     super.key,
     this.spacing = 0.0,
     this.style,
@@ -145,16 +117,13 @@ class LyricsText extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final spans = data.map((LyricsNode n) => buildInlineSpans(
-      context,
-      data: n,
-      style: style,
-    )).expand((e) => e).toList();
+    final spans = data
+        .map((LyricsNode n) => buildInlineSpans(context, data: n, style: style))
+        .expand((e) => e)
+        .toList();
 
     return Text.rich(
-      TextSpan(
-        children: spans,
-      ),
+      TextSpan(children: spans),
       textAlign: textAlign,
       textDirection: textDirection,
       softWrap: softWrap,
@@ -164,9 +133,7 @@ class LyricsText extends StatelessWidget {
   }
 }
 
-double _measurementWidth(String text, TextStyle style, {
-  TextDirection textDirection = TextDirection.ltr,
-}) {
+double _measurementWidth(String text, TextStyle style, {TextDirection textDirection = TextDirection.ltr}) {
   final textPainter = TextPainter(
     text: TextSpan(text: text, style: style),
     textDirection: textDirection,

@@ -26,9 +26,7 @@ class FSHtmlParser {
   /// - rtc 裡面不能有其他 ruby/rt/rtc
   static List<LyricsNode> _tour(dom.Node node) {
     if (node is dom.Text) {
-      return [
-        LyricsTextNode(node.text),
-      ];
+      return [LyricsTextNode(node.text)];
     }
 
     if (node is dom.Element) {
@@ -42,17 +40,11 @@ class FSHtmlParser {
 
       switch (node.localName) {
         case 'rt':
-          return [
-            LyricsRtNode(tourChildren(node)),
-          ];
+          return [LyricsRtNode(tourChildren(node))];
         case 'ruby':
-          return [
-            LyricsRubyNode(tourChildren(node)),
-          ];
+          return [LyricsRubyNode(tourChildren(node))];
         case 'rtc':
-          return [
-            LyricsTextNode('(${node.text})'),
-          ];
+          return [LyricsTextNode('(${node.text})')];
         default:
           return tourChildren(node);
       }

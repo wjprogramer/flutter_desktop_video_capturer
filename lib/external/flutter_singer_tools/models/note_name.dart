@@ -16,20 +16,7 @@ enum NoteName implements Comparable<NoteName> {
   b;
 
   /// 照頻率順序排列的所有音符名稱。
-  static const List<NoteName> allValues = [
-    c,
-    cSharp,
-    d,
-    dSharp,
-    e,
-    f,
-    fSharp,
-    g,
-    gSharp,
-    a,
-    aSharp,
-    b,
-  ];
+  static const List<NoteName> allValues = [c, cSharp, d, dSharp, e, f, fSharp, g, gSharp, a, aSharp, b];
 
   String get displayName {
     return switch (this) {

@@ -4,7 +4,6 @@ import 'dart:math' as math;
 
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
-import 'package:flutter_desktop_video_capturer/pages/menu/menu_page.dart';
 import 'package:flutter_desktop_video_capturer/utils/toast.dart';
 import 'package:path/path.dart' as p;
 import 'package:path_provider/path_provider.dart';
@@ -52,14 +51,14 @@ class CaptureRule {
   }
 }
 
-class HomePage extends StatefulWidget {
-  const HomePage({super.key});
+class CapturerPage extends StatefulWidget {
+  const CapturerPage({super.key});
 
   @override
-  State<HomePage> createState() => _HomePageState();
+  State<CapturerPage> createState() => _CapturerPageState();
 }
 
-class _HomePageState extends State<HomePage> {
+class _CapturerPageState extends State<CapturerPage> {
   final _scrollController = ScrollController();
   final List<String> _logs = [];
 
@@ -396,8 +395,7 @@ class _HomePageState extends State<HomePage> {
 
         // rename frame_%d
         final files = segDir.listSync().whereType<File>().where((f) => p.basename(f.path).startsWith('frame_'));
-        final sortedFiles = files.toList()
-          ..sort((a, b) => a.path.compareTo(b.path));
+        final sortedFiles = files.toList()..sort((a, b) => a.path.compareTo(b.path));
         for (final f in sortedFiles) {
           // padLeft(4, '0') => 避免後面排序有問題
           final newName = 'f_${imageIndex.toString().padLeft(4, '0')}${p.extension(f.path)}';
@@ -421,14 +419,16 @@ class _HomePageState extends State<HomePage> {
         plannedTimes.add(t);
       }
 
-      meta.segments.add(CapturedSegment(
-        index: i,
-        start: r.start,
-        end: r.end,
-        interval: r.interval,
-        outputDir: segDir.path,
-        plannedCaptureTimesMs: plannedTimes,
-      ));
+      meta.segments.add(
+        CapturedSegment(
+          index: i,
+          start: r.start,
+          end: r.end,
+          interval: r.interval,
+          outputDir: segDir.path,
+          plannedCaptureTimesMs: plannedTimes,
+        ),
+      );
     }
 
     // for (var rule in newRules) {
@@ -580,17 +580,7 @@ class _HomePageState extends State<HomePage> {
   Widget build(BuildContext context) {
     final videoController = _controller;
     return Scaffold(
-      appBar: AppBar(
-        title: const Text("Video Frame Extractor"),
-        actions: [
-          IconButton(
-            onPressed: () {
-              Navigator.of(context).push(MaterialPageRoute(builder: (context) => const MenuPage()));
-            },
-            icon: Icon(Icons.menu),
-          ),
-        ],
-      ),
+      appBar: AppBar(title: const Text("Video Frame Extractor"), actions: []),
       body: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
@@ -1010,9 +1000,24 @@ class _HomePageState extends State<HomePage> {
                             stopPoints.clear();
 
                             rules.addAll([
-                              CaptureRule.fromJson({"start_ms":23859,"end_ms":null,"interval_ms":3322,"rect":{"x":0,"y":155,"w":1920,"h":260}}),
-                              CaptureRule.fromJson({"start_ms":119641,"end_ms":null,"interval_ms":3322,"rect":{"x":0,"y":155,"w":1920,"h":260}}),
-                              CaptureRule.fromJson({"start_ms":209646,"end_ms":null,"interval_ms":3322,"rect":{"x":0,"y":155,"w":1920,"h":260}}),
+                              CaptureRule.fromJson({
+                                "start_ms": 23859,
+                                "end_ms": null,
+                                "interval_ms": 3322,
+                                "rect": {"x": 0, "y": 155, "w": 1920, "h": 260},
+                              }),
+                              CaptureRule.fromJson({
+                                "start_ms": 119641,
+                                "end_ms": null,
+                                "interval_ms": 3322,
+                                "rect": {"x": 0, "y": 155, "w": 1920, "h": 260},
+                              }),
+                              CaptureRule.fromJson({
+                                "start_ms": 209646,
+                                "end_ms": null,
+                                "interval_ms": 3322,
+                                "rect": {"x": 0, "y": 155, "w": 1920, "h": 260},
+                              }),
                             ]);
                             stopPoints.addAll([
                               Duration(milliseconds: 107752),

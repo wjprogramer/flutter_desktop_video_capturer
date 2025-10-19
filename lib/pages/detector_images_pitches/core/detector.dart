@@ -63,15 +63,19 @@ class ImageResult extends Equatable {
       height: json['height'],
       gridLinesY: List<int>.from(json['gridLinesY']),
       lineSpacingPx: (json['lineSpacingPx'] as num).toDouble(),
-      bars: (json['bars'] as List).map((e) => DetectedBar(
-        xCenter: (e['x_center'] as num).toDouble(),
-        x0: (e['x0'] as num).toDouble(),
-        x1: (e['x1'] as num).toDouble(),
-        yUnits: (e['y_line_units'] as num).toDouble(),
-        yNorm: (e['y_norm_0_1'] as num).toDouble(),
-        w: (e['w'] as num).toDouble(),
-        h: (e['h'] as num).toDouble(),
-      )).toList(),
+      bars: (json['bars'] as List)
+          .map(
+            (e) => DetectedBar(
+              xCenter: (e['x_center'] as num).toDouble(),
+              x0: (e['x0'] as num).toDouble(),
+              x1: (e['x1'] as num).toDouble(),
+              yUnits: (e['y_line_units'] as num).toDouble(),
+              yNorm: (e['y_norm_0_1'] as num).toDouble(),
+              w: (e['w'] as num).toDouble(),
+              h: (e['h'] as num).toDouble(),
+            ),
+          )
+          .toList(),
     );
   }
 

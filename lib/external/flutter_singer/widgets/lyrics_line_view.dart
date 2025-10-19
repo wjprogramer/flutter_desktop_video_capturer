@@ -6,13 +6,7 @@ import 'package:flutter_desktop_video_capturer/external/flutter_singer/widgets/g
 import 'package:flutter_desktop_video_capturer/external/flutter_singer/widgets/lyrics_text.dart';
 
 class LyricsLineView extends StatelessWidget {
-  const LyricsLineView({
-    super.key,
-    required this.line,
-    this.isActive = false,
-    this.debugMode = false,
-    this.onPlay,
-  });
+  const LyricsLineView({super.key, required this.line, this.isActive = false, this.debugMode = false, this.onPlay});
 
   final LyricsLine line;
 
@@ -35,16 +29,11 @@ class LyricsLineView extends StatelessWidget {
                 Row(
                   crossAxisAlignment: CrossAxisAlignment.end,
                   children: [
-                    if (debugMode) ...[
-                      Text(FSJson.durationToText(line.startTime)),
-                      const FSGap(16),
-                    ],
+                    if (debugMode) ...[Text(FSJson.durationToText(line.startTime)), const FSGap(16)],
                     Expanded(
                       child: LyricsText(
                         FSHtmlParser.parseHtml(line.content),
-                        style: TextStyle(
-                          color: isActive ? Colors.red : null,
-                        ),
+                        style: TextStyle(color: isActive ? Colors.red : null),
                         softWrap: true,
                       ),
                     ),
@@ -53,22 +42,14 @@ class LyricsLineView extends StatelessWidget {
                 Row(
                   crossAxisAlignment: CrossAxisAlignment.end,
                   children: [
-                    if (debugMode) ...[
-                      Text(FSJson.durationToText(line.endTime)),
-                      const FSGap(16),
-                    ],
-                    Expanded(
-                      child: Text(line.translation['zh_tw'] ?? ''),
-                    ),
+                    if (debugMode) ...[Text(FSJson.durationToText(line.endTime)), const FSGap(16)],
+                    Expanded(child: Text(line.translation['zh_tw'] ?? '')),
                   ],
                 ),
               ],
             ),
           ),
-          IconButton(
-            onPressed: onPlay,
-            icon: const Icon(Icons.play_arrow),
-          ),
+          IconButton(onPressed: onPlay, icon: const Icon(Icons.play_arrow)),
         ],
       ),
     );

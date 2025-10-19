@@ -1,6 +1,5 @@
 import 'dart:convert';
 
-import 'package:collection/collection.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_desktop_video_capturer/demo_data/dry_flower/data.dart';
 import 'package:flutter_desktop_video_capturer/demo_data/dry_flower/pitch_data.dart';
@@ -60,17 +59,13 @@ class _CombineWithLyricsDemoPageState extends State<CombineWithLyricsDemoPage> {
     final sel = _selectedPitch;
     final bool selWillMove = sel != null && sel.start >= start;
     final Duration? selNewStart = selWillMove ? sel!.start + delta : null;
-    final Duration? selNewEnd   = selWillMove ? sel!.end + delta   : null;
+    final Duration? selNewEnd = selWillMove ? sel!.end + delta : null;
 
     setState(() {
       // 1) 做平移
       _pitchData = _pitchData.map((p) {
         if (p.start >= start) {
-          return _PitchData(
-            pitchIndex: p.pitchIndex,
-            start: p.start + delta,
-            end: p.end + delta,
-          );
+          return _PitchData(pitchIndex: p.pitchIndex, start: p.start + delta, end: p.end + delta);
         }
         return p;
       }).toList();
@@ -78,10 +73,9 @@ class _CombineWithLyricsDemoPageState extends State<CombineWithLyricsDemoPage> {
       // 2) 若選取的那條被平移了，重新在新陣列裡指向它
       if (selWillMove && selNewStart != null && selNewEnd != null) {
         // 以 pitchIndex + start/end 完整匹配，避免誤配
-        final idx = _pitchData.indexWhere((p) =>
-        p.pitchIndex == sel.pitchIndex &&
-            p.start == selNewStart &&
-            p.end == selNewEnd);
+        final idx = _pitchData.indexWhere(
+          (p) => p.pitchIndex == sel.pitchIndex && p.start == selNewStart && p.end == selNewEnd,
+        );
         if (idx != -1) {
           _selectedPitch = _pitchData[idx];
         } else {
@@ -114,8 +108,6 @@ class _CombineWithLyricsDemoPageState extends State<CombineWithLyricsDemoPage> {
     setState(() {});
   }
 
-
-
   List<Widget> _buildChildren() {
     final results = <Widget>[];
 
@@ -139,101 +131,100 @@ class _CombineWithLyricsDemoPageState extends State<CombineWithLyricsDemoPage> {
       if (i == 0) {
         final before = unassigned.where((p) => p.start < line.startTime).toList();
         if (before.isNotEmpty) {
-          results.add(Container(
-            margin: const EdgeInsets.only(bottom: 20),
-            padding: const EdgeInsets.only(bottom: 20),
-            decoration: BoxDecoration(
-              border: Border(bottom: Divider.createBorderSide(context)),
-            ),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                const Text('🔹 遺漏 Pitch（歌詞前）', style: TextStyle(color: Colors.red)),
-                _PitchView(
-                  pitches: before,
-                  line: LyricsLine(
-                    startTime: Duration.zero,
-                    endTime: line.startTime,
-                    content: '',
-                    translation: const {},
-                  ),
-                  selected: _selectedPitch,
-                  onSelect: (p) => setState(() => _selectedPitch = p),
-                ),
-              ],
-            ),
-          ));
-        }
-      }
-
-      results.add(Container(
-        margin: const EdgeInsets.only(bottom: 20),
-        padding: const EdgeInsets.only(bottom: 20),
-        decoration: BoxDecoration(border: Border(bottom: Divider.createBorderSide(context))),
-        child: Row(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
+          results.add(
             Container(
-              margin: const EdgeInsets.only(top: 0),
-              width: 40,
-              height: 40,
-              alignment: Alignment.center,
-              child: Text((i + 1).toString()),
-            ),
-            Expanded(
+              margin: const EdgeInsets.only(bottom: 20),
+              padding: const EdgeInsets.only(bottom: 20),
+              decoration: BoxDecoration(border: Border(bottom: Divider.createBorderSide(context))),
               child: Column(
-                crossAxisAlignment: CrossAxisAlignment.stretch,
+                crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text(line.startTime.toString(), style: TextStyle(color: Colors.orange)),
-                  LyricsLineView(line: line),
-                  if (pitches.isNotEmpty)
-                    _PitchView(
-                      pitches: pitches,
-                      line: line,
-                      selected: _selectedPitch,
-                      onSelect: (p) {
-                        setState(() => _selectedPitch = p);
-                      },
+                  const Text('🔹 遺漏 Pitch（歌詞前）', style: TextStyle(color: Colors.red)),
+                  _PitchView(
+                    pitches: before,
+                    line: LyricsLine(
+                      startTime: Duration.zero,
+                      endTime: line.startTime,
+                      content: '',
+                      translation: const {},
                     ),
+                    selected: _selectedPitch,
+                    onSelect: (p) => setState(() => _selectedPitch = p),
+                  ),
                 ],
               ),
             ),
-            SizedBox(width: 30)
-          ],
+          );
+        }
+      }
+
+      results.add(
+        Container(
+          margin: const EdgeInsets.only(bottom: 20),
+          padding: const EdgeInsets.only(bottom: 20),
+          decoration: BoxDecoration(border: Border(bottom: Divider.createBorderSide(context))),
+          child: Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Container(
+                margin: const EdgeInsets.only(top: 0),
+                width: 40,
+                height: 40,
+                alignment: Alignment.center,
+                child: Text((i + 1).toString()),
+              ),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    Text(line.startTime.toString(), style: TextStyle(color: Colors.orange)),
+                    LyricsLineView(line: line),
+                    if (pitches.isNotEmpty)
+                      _PitchView(
+                        pitches: pitches,
+                        line: line,
+                        selected: _selectedPitch,
+                        onSelect: (p) {
+                          setState(() => _selectedPitch = p);
+                        },
+                      ),
+                  ],
+                ),
+              ),
+              SizedBox(width: 30),
+            ],
+          ),
         ),
-      ));
+      );
 
       final nextLine = i < _lyricsLines.length - 1 ? _lyricsLines[i + 1] : null;
       if (nextLine != null) {
-        final between = unassigned
-            .where((p) => p.start >= line.endTime && p.start < nextLine.startTime)
-            .toList();
+        final between = unassigned.where((p) => p.start >= line.endTime && p.start < nextLine.startTime).toList();
         if (between.isNotEmpty) {
-          results.add(Container(
-            margin: const EdgeInsets.only(bottom: 20),
-            padding: const EdgeInsets.only(bottom: 20, left: 20, right: 20),
-            decoration: BoxDecoration(
-              border: Border(bottom: Divider.createBorderSide(context)),
-            ),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text('🔹 遺漏 Pitch（第 ${i + 1} 行 → 第 ${i + 2} 行）',
-                    style: const TextStyle(color: Colors.red)),
-                _PitchView(
-                  pitches: between,
-                  line: LyricsLine(
-                    startTime: line.endTime,
-                    endTime: nextLine.startTime,
-                    content: '',
-                    translation: const {},
+          results.add(
+            Container(
+              margin: const EdgeInsets.only(bottom: 20),
+              padding: const EdgeInsets.only(bottom: 20, left: 20, right: 20),
+              decoration: BoxDecoration(border: Border(bottom: Divider.createBorderSide(context))),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text('🔹 遺漏 Pitch（第 ${i + 1} 行 → 第 ${i + 2} 行）', style: const TextStyle(color: Colors.red)),
+                  _PitchView(
+                    pitches: between,
+                    line: LyricsLine(
+                      startTime: line.endTime,
+                      endTime: nextLine.startTime,
+                      content: '',
+                      translation: const {},
+                    ),
+                    selected: _selectedPitch,
+                    onSelect: (p) => setState(() => _selectedPitch = p),
                   ),
-                  selected: _selectedPitch,
-                  onSelect: (p) => setState(() => _selectedPitch = p),
-                ),
-              ],
+                ],
+              ),
             ),
-          ));
+          );
         }
       }
     }
@@ -243,27 +234,29 @@ class _CombineWithLyricsDemoPageState extends State<CombineWithLyricsDemoPage> {
       final lastEnd = _lyricsLines.last.endTime;
       final after = unassigned.where((p) => p.start >= lastEnd).toList();
       if (after.isNotEmpty) {
-        results.add(Container(
-          margin: const EdgeInsets.only(bottom: 20),
-          padding: const EdgeInsets.only(bottom: 20, left: 20, right: 20),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              const Text('🔹 遺漏 Pitch（歌詞結束後）', style: TextStyle(color: Colors.red)),
-              _PitchView(
-                pitches: after,
-                line: LyricsLine(
-                  startTime: lastEnd,
-                  endTime: lastEnd + const Duration(seconds: 3),
-                  content: '',
-                  translation: const {},
+        results.add(
+          Container(
+            margin: const EdgeInsets.only(bottom: 20),
+            padding: const EdgeInsets.only(bottom: 20, left: 20, right: 20),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Text('🔹 遺漏 Pitch（歌詞結束後）', style: TextStyle(color: Colors.red)),
+                _PitchView(
+                  pitches: after,
+                  line: LyricsLine(
+                    startTime: lastEnd,
+                    endTime: lastEnd + const Duration(seconds: 3),
+                    content: '',
+                    translation: const {},
+                  ),
+                  selected: _selectedPitch,
+                  onSelect: (p) => setState(() => _selectedPitch = p),
                 ),
-                selected: _selectedPitch,
-                onSelect: (p) => setState(() => _selectedPitch = p),
-              ),
-            ],
+              ],
+            ),
           ),
-        ));
+        );
       }
     }
 
@@ -277,13 +270,7 @@ class _CombineWithLyricsDemoPageState extends State<CombineWithLyricsDemoPage> {
       body: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          Expanded(
-            child: ListView(
-              children: [
-                ..._buildChildren(),
-              ],
-            ),
-          ),
+          Expanded(child: ListView(children: [..._buildChildren()])),
           Container(
             padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
             decoration: BoxDecoration(border: Border(top: Divider.createBorderSide(context))),

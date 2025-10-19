@@ -28,5 +28,4 @@ class FSFormatter {
   static String _twoDigits(int n) => n.toString().padLeft(2, '0');
 
   static String _threeDigits(int n) => n.toString().padLeft(3, '0');
-
 }

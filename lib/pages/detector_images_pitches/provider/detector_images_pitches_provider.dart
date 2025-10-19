@@ -1,4 +1,3 @@
-import 'dart:convert';
 import 'dart:io';
 
 import 'package:flutter/cupertino.dart';
@@ -52,10 +51,7 @@ class DetectorImagesPitchesProvider extends ChangeNotifier {
 
     final previousProcessed = tmpProcessed.map((e) => ImageResult.fromJson(e)).toList();
 
-    _lastResult = res.copyWith(images: [
-      ...previousProcessed,
-      ...res.images.skip(previousProcessed.length),
-    ]);
+    _lastResult = res.copyWith(images: [...previousProcessed, ...res.images.skip(previousProcessed.length)]);
     notifyListeners();
 
     // final jsonList = <Map<String, dynamic>>[];

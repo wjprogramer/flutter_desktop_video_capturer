@@ -167,22 +167,22 @@ class _DetectorImagesPitchesPageState extends State<DetectorImagesPitchesPage> {
       final currentSegmentIndex = _metaFile?.getSegmentIndex(i);
 
       if (currentSegmentIndex != segmentIndex) {
-        results.add(Padding(
-          padding: const EdgeInsets.symmetric(vertical: 8),
-          child: Text(
-            'Segment ${currentSegmentIndex ?? '?'}',
-            style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+        results.add(
+          Padding(
+            padding: const EdgeInsets.symmetric(vertical: 8),
+            child: Text(
+              'Segment ${currentSegmentIndex ?? '?'}',
+              style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+            ),
           ),
-        ));
+        );
         segmentIndex = currentSegmentIndex;
       }
 
       results.add(Text(i.toString()));
 
       if (timeInfo != null) {
-        results.add(Text(
-          timeInfo.startTime.toString()
-        ));
+        results.add(Text(timeInfo.startTime.toString()));
       }
 
       results.add(
