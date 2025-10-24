@@ -56,8 +56,10 @@ dependencies:
   gap: ^3.0.1
   image: ^4.5.4
   provider: ^6.1.5+1
+  uuid: ^4.5.1
   # BSD-3-Clause
   collection: any
+  open_file: ^3.5.4
   path: ^1.9.1
   shared_preferences: ^2.5.3
   # Apache-2.0

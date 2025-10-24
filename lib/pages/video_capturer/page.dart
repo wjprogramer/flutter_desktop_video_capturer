@@ -3,7 +3,6 @@ import 'package:flutter_desktop_video_capturer/helpers/video_capturer/src/captur
 import 'package:flutter_desktop_video_capturer/helpers/video_capturer/src/models.dart';
 import 'package:flutter_desktop_video_capturer/helpers/video_capturer/src/video_capturer_view_mixin.dart';
 import 'package:flutter_desktop_video_capturer/utilities/formatter.dart';
-import 'package:flutter_desktop_video_capturer/utils/toast.dart';
 import 'package:flutter_desktop_video_capturer/widgets/video_capturer/video_capturer_player.dart';
 import 'package:flutter_desktop_video_capturer/widgets/video_capturer/video_progress_and_rules_preview_slider.dart';
 
@@ -15,10 +14,6 @@ class CapturerPage extends StatefulWidget {
 }
 
 class _CapturerPageState extends State<CapturerPage> with VideoCapturerViewMixin {
-  final _scrollController = ScrollController();
-
-  final List<String> _logs = [];
-
   List<CaptureRule> get _rules => videoCapturer.rules;
 
   List<Duration> get _stopPoints => videoCapturer.stopPoints;
@@ -26,9 +21,9 @@ class _CapturerPageState extends State<CapturerPage> with VideoCapturerViewMixin
   int get _defaultIntervalMs => videoCapturer.defaultIntervalMs;
 
   @override
-  void dispose() {
-    _scrollController.dispose();
-    super.dispose();
+  void initState() {
+    super.initState();
+    initVideoCapturer();
   }
 
   @override
@@ -125,31 +120,7 @@ class _CapturerPageState extends State<CapturerPage> with VideoCapturerViewMixin
                                 ),
                                 const SizedBox(width: 8),
                                 ElevatedButton(
-                                  onPressed: () {
-                                    final pos = videoController.value.position;
-
-                                    final nearest = videoCapturer.nearestRuleFor(pos);
-                                    if (nearest == null) {
-                                      showToast('找不到最近的開始點（中間有停止點或尚未建立規則）');
-                                      return;
-                                    }
-
-                                    final ms = (pos - nearest.start).inMilliseconds.abs();
-                                    if (ms <= 0) {
-                                      showToast('目前時間與最近開始點相同，無法推算間隔');
-                                      return;
-                                    }
-
-                                    videoCapturer.setDefaultIntervalMs(ms);
-                                    setState(() {});
-                                    showToast(
-                                      '已將預設間隔設為 $ms ms（最近開始點：${Formatter.durationText(nearest.start)} → 目前：${Formatter.durationText(pos)}）',
-                                    );
-
-                                    // 若你想同時把「最近那條 rule 的 interval」也一併更新，可解除下列註解：
-                                    // final idx = rules.indexWhere((r) => r.start == nearest.start);
-                                    // if (idx >= 0) setState(() => rules[idx] = rules[idx].copyWith(interval: Duration(milliseconds: ms)));
-                                  },
+                                  onPressed: () => updateIntervalFromLastRule(videoController),
                                   child: const Text('用最近開始點推算間隔'),
                                 ),
                               ],
@@ -294,25 +265,10 @@ class _CapturerPageState extends State<CapturerPage> with VideoCapturerViewMixin
                         ),
                       ],
                     ),
+                    Divider(),
+                    Text('預覽擷取圖片'),
                   ],
                 ],
-              ),
-            ),
-          ),
-          SizedBox(
-            height: 300,
-            child: Container(
-              color: Colors.black,
-              child: ListView.builder(
-                controller: _scrollController,
-                itemCount: _logs.length,
-                reverse: true,
-                itemBuilder: (context, index) {
-                  return Text(
-                    _logs[index],
-                    style: const TextStyle(color: Colors.greenAccent, fontFamily: 'monospace', fontSize: 12),
-                  );
-                },
               ),
             ),
           ),

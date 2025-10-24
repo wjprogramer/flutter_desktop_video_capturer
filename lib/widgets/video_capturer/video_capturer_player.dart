@@ -1,24 +1,11 @@
-import 'package:flutter/material.dart';
-import 'package:flutter/material.dart';
-import 'package:flutter_desktop_video_capturer/helpers/video_capturer/src/capture_segment.dart';
-import 'package:flutter_desktop_video_capturer/helpers/video_capturer/src/models.dart';
-import 'package:flutter_desktop_video_capturer/helpers/video_capturer/src/video_capturer.dart';
-import 'package:flutter_desktop_video_capturer/helpers/video_capturer/src/video_capturer_view_mixin.dart';
-import 'package:flutter_desktop_video_capturer/utilities/formatter.dart';
-import 'package:flutter_desktop_video_capturer/utils/toast.dart';
-import 'package:flutter_desktop_video_capturer/widgets/video_capturer/video_capturer_player.dart';
-import 'package:flutter_desktop_video_capturer/widgets/video_capturer/video_progress_and_rules_preview_slider.dart';
-import 'package:video_player/video_player.dart';
 import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
+import 'package:flutter_desktop_video_capturer/helpers/video_capturer/src/video_capturer.dart';
+import 'package:video_player/video_player.dart';
 
 class VideoCapturerPlayer extends StatefulWidget {
-  const VideoCapturerPlayer({
-    super.key,
-    required this.videoController,
-    required this.videoCapturer,
-  });
+  const VideoCapturerPlayer({super.key, required this.videoController, required this.videoCapturer});
 
   final VideoPlayerController videoController;
 
@@ -59,7 +46,7 @@ class _VideoCapturerPlayerState extends State<VideoCapturerPlayer> {
       final r = videoCapturer.rectVideoPx!;
       debugPrint(
         '選取(影片像素): x=${r.left.toStringAsFixed(1)}, y=${r.top.toStringAsFixed(1)}, '
-            'w=${r.width.toStringAsFixed(1)}, h=${r.height.toStringAsFixed(1)}',
+        'w=${r.width.toStringAsFixed(1)}, h=${r.height.toStringAsFixed(1)}',
       );
     }
   }
@@ -70,9 +57,7 @@ class _VideoCapturerPlayerState extends State<VideoCapturerPlayer> {
       color: Colors.black,
       width: double.infinity,
       alignment: Alignment.center,
-      constraints: BoxConstraints(
-        maxHeight: 450,
-      ),
+      constraints: BoxConstraints(maxHeight: 450),
       child: AspectRatio(
         aspectRatio: videoController.value.aspectRatio,
         child: Stack(
@@ -138,41 +123,6 @@ class _RectOnVideoPainter extends CustomPainter {
 
   @override
   bool shouldRepaint(covariant _RectOnVideoPainter oldDelegate) {
-    return oldDelegate.rectVideoPx != rectVideoPx;
-  }
-}
-
-class RectPainter extends CustomPainter {
-  final Offset? start;
-  final Offset? end;
-  final Rect? selectedRect;
-
-  RectPainter(this.start, this.end, this.selectedRect);
-
-  @override
-  void paint(Canvas canvas, Size size) {
-    final paint = Paint()
-      ..color = Colors.red.withOpacity(0.3)
-      ..style = PaintingStyle.fill;
-
-    final border = Paint()
-      ..color = Colors.red
-      ..strokeWidth = 2
-      ..style = PaintingStyle.stroke;
-
-    if (start != null && end != null) {
-      final rect = Rect.fromPoints(start!, end!);
-      canvas.drawRect(rect, paint);
-      canvas.drawRect(rect, border);
-    }
-
-    if (selectedRect != null) {
-      canvas.drawRect(selectedRect!, border);
-    }
-  }
-
-  @override
-  bool shouldRepaint(covariant RectPainter oldDelegate) {
-    return oldDelegate.start != start || oldDelegate.end != end || oldDelegate.selectedRect != selectedRect;
+    return oldDelegate.rectVideoPx != rectVideoPx || oldDelegate.toScreen != toScreen;
   }
 }

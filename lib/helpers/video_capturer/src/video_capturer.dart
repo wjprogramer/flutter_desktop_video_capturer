@@ -11,6 +11,8 @@ import 'package:path/path.dart' as p;
 import 'models.dart';
 
 class VideoCapturer {
+  VideoCapturer();
+
   String? _videoPath;
 
   String? get videoPath => _videoPath;

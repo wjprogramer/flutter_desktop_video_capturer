@@ -35,7 +35,7 @@ class _DetectorImagesPitchesPageState extends State<DetectorImagesPitchesPage> {
   List<int> _gridLinesY = [];
   CaptureMetaFile? _metaFile;
 
-  /// 是否要預覽圖片
+  /// 是否要預覽辨識結果
   bool _preview = true;
 
   void _append(String s) => setState(() => log += '$s\n');

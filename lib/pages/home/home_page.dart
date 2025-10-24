@@ -1,10 +1,14 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_desktop_video_capturer/extensions/collection.dart';
 import 'package:flutter_desktop_video_capturer/pages/combine_with_lyrics/combine_with_lyrics_demo.dart';
+import 'package:flutter_desktop_video_capturer/pages/demo_third_party/path_provider_demo/path_provider_demo_page.dart';
 import 'package:flutter_desktop_video_capturer/pages/detector_images_pitches/detector_images_pitches_page.dart';
 import 'package:flutter_desktop_video_capturer/pages/main_feature/main_feature_page.dart';
 import 'package:flutter_desktop_video_capturer/pages/process_horizontal_images/process_horizontal_images_page.dart';
 import 'package:flutter_desktop_video_capturer/pages/video_capturer/page.dart';
+import 'package:flutter_desktop_video_capturer/third_party/open_file/open_file.dart';
+import 'package:flutter_desktop_video_capturer/third_party/path_provider/path_provider.dart';
+import 'package:flutter_desktop_video_capturer/utilities/file_structure_utility.dart';
 
 class HomePage extends StatelessWidget {
   const HomePage({super.key});
@@ -25,6 +29,11 @@ class HomePage extends StatelessWidget {
           _Item(name: '結合歌詞與音階', page: (_) => CombineWithLyricsDemoPage()),
         ],
       ),
+      _Group(name: '工具', items: []),
+      _Group(
+        name: 'Third Party',
+        items: [_Item(name: 'path_provider demo', page: (_) => PathProviderDemoPage())],
+      ),
     ];
 
     return Scaffold(
@@ -38,27 +47,24 @@ class HomePage extends StatelessWidget {
             children: [
               Padding(
                 padding: const EdgeInsets.all(16.0),
-                child: Text(group.name, style: Theme
-                    .of(context)
-                    .textTheme
-                    .titleLarge),
+                child: Text(group.name, style: Theme.of(context).textTheme.titleLarge),
               ),
               ...group.items
                   .map<Widget>((item) {
-                return ListTile(
-                  title: Text(item.name),
-                  onTap: item.page == null
-                      ? null
-                      : () {
-                    Navigator.of(context).push(MaterialPageRoute(builder: item.page!));
-                  },
-                );
-              })
+                    return ListTile(
+                      title: Text(item.name),
+                      onTap: item.page == null
+                          ? null
+                          : () {
+                              Navigator.of(context).push(MaterialPageRoute(builder: item.page!));
+                            },
+                    );
+                  })
                   .joinWith(
-                Container(
-                  decoration: BoxDecoration(border: Border(bottom: Divider.createBorderSide(context))),
-                ),
-              ),
+                    Container(
+                      decoration: BoxDecoration(border: Border(bottom: Divider.createBorderSide(context))),
+                    ),
+                  ),
             ],
           );
         },
