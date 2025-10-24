@@ -34,12 +34,12 @@ class _CombineWithLyricsDemoPageState extends State<CombineWithLyricsDemoPage> w
               children: [
                 // Undo / Redo
                 FilledButton.tonalIcon(
-                  onPressed: undoStack.isEmpty ? null : undo,
+                  onPressed: canUndo() ? null : undo,
                   icon: const Icon(Icons.undo),
                   label: const Text('Undo'),
                 ),
                 FilledButton.tonalIcon(
-                  onPressed: redoStack.isEmpty ? null : redo,
+                  onPressed: canRedo() ? null : redo,
                   icon: const Icon(Icons.redo),
                   label: const Text('Redo'),
                 ),

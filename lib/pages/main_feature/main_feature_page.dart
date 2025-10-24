@@ -1,7 +1,10 @@
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_desktop_video_capturer/helpers/combine_with_lyrics/src/combine_with_lyrics_view_mixin.dart';
+import 'package:flutter_desktop_video_capturer/helpers/detector_images_pitches/src/detect_pitches_exporter.dart';
 import 'package:flutter_desktop_video_capturer/helpers/detector_images_pitches/src/detector_images_pitches_mixin.dart';
+import 'package:flutter_desktop_video_capturer/helpers/detector_images_pitches/src/models/detected_pitch_images_adjust_time_info.dart';
+import 'package:flutter_desktop_video_capturer/helpers/traceable_history.dart';
 import 'package:flutter_desktop_video_capturer/helpers/video_capturer/src/video_capturer_view_mixin.dart';
 import 'package:flutter_desktop_video_capturer/widgets/common/area.dart';
 import 'package:flutter_desktop_video_capturer/widgets/detector_images_pitches/detector_images_pitches_area.dart';
@@ -42,6 +45,10 @@ enum _PitchesEditorMode {
 /// 4. 調整音高與時間
 /// 5. 輸入字幕
 /// 6. 輸出影片
+///
+/// ## 注意
+///
+/// - 此 Page 不會用到 [CombineWithLyricsViewMixin] 的修改歌詞功能，僅用來顯示歌詞與音高的結合預覽
 class MainFeaturePage extends StatefulWidget {
   const MainFeaturePage({super.key});
 
@@ -52,6 +59,10 @@ class MainFeaturePage extends StatefulWidget {
 class _MainFeaturePageState extends State<MainFeaturePage>
     with VideoCapturerViewMixin, DetectorImagesPitchesViewMixin, CombineWithLyricsViewMixin {
   _PitchesEditorMode _mode = _PitchesEditorMode.byImage;
+
+  final TraceableHistory<DetectedPitchImagesAdjustTimeInfo> _adjustPitchHistory =
+      TraceableHistory<DetectedPitchImagesAdjustTimeInfo>();
+  DetectedPitchImagesAdjustTimeInfo _adjustPitchTimeInfo = DetectedPitchImagesAdjustTimeInfo();
 
   @override
   void initState() {
@@ -70,6 +81,74 @@ class _MainFeaturePageState extends State<MainFeaturePage>
     setState(() {
       _mode = mode;
     });
+  }
+
+  Future<void> _tryUpdatePitchDataList({required DetectedPitchImagesAdjustTimeInfo adjustPitchInfo}) async {
+    if (detectorImagesPitchesProvider.lastResult == null) {
+      print('尚無圖片音高偵測結果，無法匯出');
+      return;
+    }
+
+    if (captureMeta == null) {
+      print('尚無擷取結果資訊，無法匯出');
+      return;
+    }
+
+    final captureOutDir = await getCapturedImagesOutputDirectoryIfExists();
+    if (captureOutDir == null) {
+      print('尚無擷取圖片資料夾，無法匯出');
+      return;
+    }
+
+    final inputFiles = getCapturedImageFiles(captureOutDir.path);
+    if (inputFiles.isEmpty) {
+      print('擷取圖片資料夾內無圖片，無法匯出');
+      return;
+    }
+
+    final exporter = DetectPitchesExporter(
+      previousStepResult: detectorImagesPitchesProvider.lastResult!,
+      metaFile: captureMeta!,
+      inputFiles: inputFiles,
+      adjustTimeInfo: adjustImageTimeInfo,
+    );
+    var pitchDataList = exporter.exportToPitchDataList();
+
+    // debug
+    final p = pitchDataList[14];
+    final diff = adjustPitchInfo.getDiffDuration(p.start);
+    print(p);
+    print(p.start + diff);
+    // debug end
+
+    pitchDataList = pitchDataList.map((e) {
+      final diff = adjustPitchInfo.getDiffDuration(e.start);
+      final adjustedStart = e.start + diff;
+      final adjustedEnd = e.end + diff;
+      return e.copyWith(start: adjustedStart, end: adjustedEnd);
+    }).toList();
+    setPitchDataList(pitchDataList);
+  }
+
+  // TODO:
+  void _shiftPitchesFrom(Duration start, Duration delta) {
+    // 先記住目前選取的 pitch（若它會被平移，記下平移後的時間）
+    final sel = selectedPitch;
+    final bool selWillMove = sel != null && sel.start >= start;
+    final Duration? selNewStart = selWillMove ? sel.start + delta : null;
+    final Duration? selNewEnd = selWillMove ? sel.end + delta : null;
+
+    if (sel == null) {
+      return;
+    }
+
+    final newAdjustInfo = _adjustPitchTimeInfo.cloneAndAddAdjustDetail(sel.start, delta);
+    _adjustPitchHistory.add(newAdjustInfo);
+
+    _adjustPitchTimeInfo = newAdjustInfo;
+    setState(() {});
+
+    _tryUpdatePitchDataList(adjustPitchInfo: _adjustPitchTimeInfo);
   }
 
   Widget _buildBody(BuildContext context) {
@@ -224,10 +303,10 @@ class _MainFeaturePageState extends State<MainFeaturePage>
                       }).toList(),
                     ),
                     SizedBox(height: 8),
-                    Text('預覽設定'),
-                    SizedBox(height: 8),
                     ...switch (_mode) {
                       _PitchesEditorMode.byImage => [
+                        Text('預覽設定'),
+                        SizedBox(height: 8),
                         Row(
                           children: [
                             FilledButton.icon(
@@ -243,6 +322,13 @@ class _MainFeaturePageState extends State<MainFeaturePage>
                               icon: const Icon(Icons.bug_report_outlined),
                               label: const Text('暫時用'),
                             ),
+                            SizedBox(width: 8),
+                            // TODO: 目前需手動，之後要自動處理
+                            FilledButton.icon(
+                              onPressed: () => _tryUpdatePitchDataList(adjustPitchInfo: _adjustPitchTimeInfo),
+                              icon: const Icon(Icons.bug_report_outlined),
+                              label: const Text('暫時: Image Result to Pitch Data'),
+                            ),
                           ],
                         ),
                       ],
@@ -251,44 +337,28 @@ class _MainFeaturePageState extends State<MainFeaturePage>
                           runSpacing: 12,
                           spacing: 12,
                           children: [
-                            // Undo / Redo
-                            FilledButton.tonalIcon(
-                              onPressed: undoStack.isEmpty ? null : undo,
-                              icon: const Icon(Icons.undo),
-                              label: const Text('Undo'),
-                            ),
-                            FilledButton.tonalIcon(
-                              onPressed: redoStack.isEmpty ? null : redo,
-                              icon: const Icon(Icons.redo),
-                              label: const Text('Redo'),
-                            ),
-                            FilledButton.tonalIcon(
-                              onPressed: debugPrintPitchDataList,
-                              icon: const Icon(Icons.code),
-                              label: const Text('Print Pitch Data'),
-                            ),
                             if (selectedPitch == null)
                               const Text('點一下上方的 pitch bar 以選取並微調')
                             else ...[
                               Text('選取起點: ${selectedPitch!.start.inMilliseconds} ms'),
                               FilledButton(
                                 onPressed: () =>
-                                    shiftPitchesFrom(selectedPitch!.start, const Duration(milliseconds: -10)),
+                                    _shiftPitchesFrom(selectedPitch!.start, const Duration(milliseconds: -10)),
                                 child: const Text('-10ms'),
                               ),
                               FilledButton(
                                 onPressed: () =>
-                                    shiftPitchesFrom(selectedPitch!.start, const Duration(milliseconds: -50)),
+                                    _shiftPitchesFrom(selectedPitch!.start, const Duration(milliseconds: -50)),
                                 child: const Text('-50ms'),
                               ),
                               FilledButton(
                                 onPressed: () =>
-                                    shiftPitchesFrom(selectedPitch!.start, const Duration(milliseconds: 10)),
+                                    _shiftPitchesFrom(selectedPitch!.start, const Duration(milliseconds: 10)),
                                 child: const Text('+10ms'),
                               ),
                               FilledButton(
                                 onPressed: () =>
-                                    shiftPitchesFrom(selectedPitch!.start, const Duration(milliseconds: 50)),
+                                    _shiftPitchesFrom(selectedPitch!.start, const Duration(milliseconds: 50)),
                                 child: const Text('+50ms'),
                               ),
                             ],
@@ -296,6 +366,53 @@ class _MainFeaturePageState extends State<MainFeaturePage>
                         ),
                       ],
                     },
+                    SizedBox(height: 8),
+                    Text('調整圖片時間 (根據歌詞模式所選擇的截圖)'),
+                    SizedBox(height: 8),
+                    Wrap(
+                      spacing: 12,
+                      runSpacing: 12,
+                      children: [
+                        FilledButton(
+                          onPressed: () {
+                            final newAdjustPitchInfo = DetectedPitchImagesAdjustTimeInfo();
+                            _adjustPitchHistory.add(newAdjustPitchInfo);
+                            _adjustPitchTimeInfo = newAdjustPitchInfo;
+                            setState(() {});
+                          },
+                          child: Text('清除針對歌詞的調整'),
+                        ),
+                      ],
+                    ),
+                    SizedBox(height: 8),
+                    Text('調整圖片時間 (根據圖片模式所選擇的截圖)'),
+                    SizedBox(height: 8),
+                    if (selectedImageFile == null)
+                      const Text('點一下上方的圖片以選取並微調', style: TextStyle(color: Colors.grey))
+                    else
+                      Wrap(
+                        spacing: 12,
+                        runSpacing: 12,
+                        children: [
+                          ...[-1, 1]
+                              .map(
+                                (multiplier) => [1000, 500, 100, 50, 10].map(
+                                  (ms) => FilledButton(
+                                    onPressed: () {
+                                      shiftImagePitchesFrom(
+                                        selectedImageFile!,
+                                        Duration(milliseconds: ms * multiplier),
+                                      );
+                                      _tryUpdatePitchDataList(adjustPitchInfo: _adjustPitchTimeInfo);
+                                    },
+                                    child: Text('${multiplier * ms}ms'),
+                                  ),
+                                ),
+                              )
+                              .expand((e) => e),
+                          FilledButton(onPressed: () => clearAdjustTimeInfo(), child: const Text('清除調整')),
+                        ],
+                      ),
                   ],
                 ),
               ),

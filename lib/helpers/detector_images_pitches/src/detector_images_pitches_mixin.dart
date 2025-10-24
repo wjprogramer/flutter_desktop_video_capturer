@@ -40,6 +40,20 @@ mixin DetectorImagesPitchesViewMixin<T extends StatefulWidget> on State<T> {
   /// 已擷取的圖片檔案列表
   List<File> get capturedImageFiles => _capturedImageFiles.toList();
 
+  /// For undo adjust time info
+  final List<DetectedPitchImagesAdjustTimeInfo> _adjustTimeInfosUndoStack = [];
+
+  /// For redo adjust time info
+  final List<DetectedPitchImagesAdjustTimeInfo> _adjustTimeInfosRedoStack = [];
+
+  DetectedPitchImagesAdjustTimeInfo _adjustImageTimeInfo = DetectedPitchImagesAdjustTimeInfo();
+
+  DetectedPitchImagesAdjustTimeInfo get adjustImageTimeInfo => _adjustImageTimeInfo;
+
+  File? _selectedFile;
+
+  File? get selectedImageFile => _selectedFile;
+
   /// set [_captureMeta]
   void setCaptureMeta(CaptureMeta? meta) {
     _captureMeta = meta;
@@ -93,7 +107,7 @@ mixin DetectorImagesPitchesViewMixin<T extends StatefulWidget> on State<T> {
     });
   }
 
-  Future<void> tryRunDetectImagesPitches({ required String? inputDir}) async {
+  Future<void> tryRunDetectImagesPitches({required String? inputDir}) async {
     if (inputDir == null || inputDir.isEmpty) {
       showToast('請先選擇輸入資料夾');
       return;
@@ -128,7 +142,7 @@ mixin DetectorImagesPitchesViewMixin<T extends StatefulWidget> on State<T> {
     int? segmentIndex;
 
     for (var i = 0; i < capturedImageFiles.length; i++) {
-      final f = capturedImageFiles[i];
+      final file = capturedImageFiles[i];
       final timeInfo = _captureMeta?.getTimeInfoByIndex(i);
       final currentSegmentIndex = _captureMeta?.getSegmentIndex(i);
 
@@ -145,7 +159,27 @@ mixin DetectorImagesPitchesViewMixin<T extends StatefulWidget> on State<T> {
         segmentIndex = currentSegmentIndex;
       }
 
-      results.add(Text(i.toString()));
+      results.add(
+        Row(
+          children: [
+            Text(i.toString()),
+            const SizedBox(width: 8),
+            Checkbox(
+              value: _selectedFile == file,
+              onChanged: (v) {
+                setState(() {
+                  if (v == true) {
+                    _selectedFile = file;
+                  } else {
+                    _selectedFile = null;
+                  }
+                });
+              },
+            ),
+            Text(getStartDuration(file).toString()),
+          ],
+        ),
+      );
 
       if (timeInfo != null) {
         results.add(Text(timeInfo.startTime.toString()));
@@ -156,7 +190,7 @@ mixin DetectorImagesPitchesViewMixin<T extends StatefulWidget> on State<T> {
           padding: const EdgeInsets.symmetric(vertical: 4),
           child: ImageItem(
             provider: _provider,
-            image: f,
+            image: file,
             preview: isPreviewImagesDetectResult,
             tools: ChangeNotifierProvider.value(
               value: _provider,
@@ -171,14 +205,14 @@ mixin DetectorImagesPitchesViewMixin<T extends StatefulWidget> on State<T> {
                         mainAxisAlignment: MainAxisAlignment.end,
                         children: [
                           IconButton(
-                            onPressed: () => onSetGridLines(f),
+                            onPressed: () => onSetGridLines(file),
                             tooltip: '使用此圖片的 Grid Lines',
                             icon: Icon(Icons.menu, color: Colors.white),
                           ),
                           SizedBox(width: 8),
                           IconButton(
                             onPressed: () {
-                              final result = _provider.getImageResult(f);
+                              final result = _provider.getImageResult(file);
                               if (result == null) return;
 
                               print(const JsonEncoder.withIndent('  ').convert(result.toJson()));
@@ -190,30 +224,30 @@ mixin DetectorImagesPitchesViewMixin<T extends StatefulWidget> on State<T> {
                           VerticalDivider(),
                           SizedBox(width: 8),
                           IconButton(
-                            onPressed: _provider.getSelectedBarIndexOfImage(f) == null
+                            onPressed: _provider.getSelectedBarIndexOfImage(file) == null
                                 ? null
                                 : () {
-                                    _provider.deleteSelectedBarOfImage(f);
+                                    _provider.deleteSelectedBarOfImage(file);
                                   },
                             tooltip: '刪除選取的藍條',
                             icon: Icon(
                               Icons.delete,
-                              color: _provider.getSelectedBarIndexOfImage(f) == null ? Colors.grey : Colors.white,
+                              color: _provider.getSelectedBarIndexOfImage(file) == null ? Colors.grey : Colors.white,
                             ),
                           ),
                           SizedBox(width: 8),
                           IconButton(
-                            onPressed: _provider.getSelectedBarIndexOfImage(f) == null
+                            onPressed: _provider.getSelectedBarIndexOfImage(file) == null
                                 ? null
                                 : () {
-                                    final sel = _provider.getSelectedBarIndexOfImage(f);
+                                    final sel = _provider.getSelectedBarIndexOfImage(file);
                                     if (sel == null) return;
-                                    _provider.copyAndPasteBarOfImage(f, sel);
+                                    _provider.copyAndPasteBarOfImage(file, sel);
                                   },
                             tooltip: '複製並貼上選取的藍條',
                             icon: Icon(
                               Icons.copy,
-                              color: _provider.getSelectedBarIndexOfImage(f) == null ? Colors.grey : Colors.white,
+                              color: _provider.getSelectedBarIndexOfImage(file) == null ? Colors.grey : Colors.white,
                             ),
                           ),
                         ],
@@ -230,6 +264,72 @@ mixin DetectorImagesPitchesViewMixin<T extends StatefulWidget> on State<T> {
 
     return results;
   }
+
+  void undoAdjustTimeInfo() {
+    if (_adjustTimeInfosUndoStack.isEmpty) return;
+    _adjustTimeInfosRedoStack.add(_adjustImageTimeInfo);
+    final previous = _adjustTimeInfosUndoStack.removeLast();
+    setState(() {
+      _adjustImageTimeInfo = previous;
+    });
+  }
+
+  void redoAdjustTimeInfo() {
+    if (_adjustTimeInfosRedoStack.isEmpty) return;
+    _adjustTimeInfosUndoStack.add(_adjustImageTimeInfo);
+    final next = _adjustTimeInfosRedoStack.removeLast();
+    setState(() {
+      _adjustImageTimeInfo = next;
+    });
+  }
+
+  void _pushHistory() {
+    _adjustTimeInfosUndoStack.add(_adjustImageTimeInfo);
+    _adjustTimeInfosRedoStack.clear(); // 新操作發生時清空 redo
+  }
+
+  void shiftImagePitchesFrom(File file, Duration shiftDuration) {
+    final index = capturedImageFiles.indexOf(file);
+    if (index == -1) return;
+
+    final imageResult = detectorImagesPitchesProvider.getImageResult(file);
+    if (imageResult == null) return;
+
+    final detectResult = detectorImagesPitchesProvider.lastResult;
+    if (detectResult == null) return;
+
+    final captureMeta = this.captureMeta;
+    if (captureMeta == null) return;
+
+    _pushHistory();
+
+    final timeInfo = captureMeta.getTimeInfoFromZero(index);
+
+    final newAdjustStartTime = timeInfo.startTime; //  + _adjustTimeInfo.getDiffDuration(timeInfo.startTime)
+    _adjustImageTimeInfo = _adjustImageTimeInfo.cloneAndAddAdjustDetail(newAdjustStartTime, shiftDuration);
+
+    print(1);
+    setState(() {});
+  }
+
+  void clearAdjustTimeInfo() {
+    _pushHistory();
+    _adjustImageTimeInfo = DetectedPitchImagesAdjustTimeInfo();
+    setState(() {});
+  }
+
+  Duration getStartDuration(File file) {
+    final index = capturedImageFiles.indexOf(file);
+    if (index == -1) return Duration.zero;
+
+    final captureMeta = this.captureMeta;
+    if (captureMeta == null) return Duration.zero;
+
+    final timeInfo = captureMeta.getTimeInfoFromZero(index);
+    return timeInfo.startTime + _adjustImageTimeInfo.getDiffDuration(timeInfo.startTime);
+  }
+
+
 }
 
 /// 比對兩個 List 是否內容相同（順序也要相同）

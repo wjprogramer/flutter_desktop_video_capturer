@@ -1,5 +1,6 @@
 import 'dart:ui';
 
+import 'package:flutter/material.dart';
 import 'package:flutter_desktop_video_capturer/helpers/video_capturer/video_capturer.dart';
 
 /// 擷取影片的 metadata 檔案
@@ -80,6 +81,21 @@ class CaptureMeta {
     final plannedTimeMs = segment.plannedCaptureTimesMs[frameIndexInSegment];
     final startTime = Duration(milliseconds: plannedTimeMs); // Don't add "segment.start"
     final endTime = segment.end ?? startTime;
+    final duration = endTime - startTime;
+    return FrameTimeInfo(startTime: startTime, duration: duration);
+  }
+
+  /// 將第一章圖片的時間點視為 0
+  FrameTimeInfo getTimeInfoFromZero(int frameIndex) {
+    final indices = _getSegmentIndexAndFrameIndexByFrameIndex(frameIndex);
+    if (indices == null) {
+      throw Exception('Frame index out of range');
+    }
+    final (segmentIndex, frameIndexInSegment) = indices;
+    final segment = segments[segmentIndex];
+    final plannedTimeMs = segment.plannedCaptureTimesMs[frameIndexInSegment];
+    final startTime = Duration(milliseconds: plannedTimeMs) - segments.first.start;
+    final endTime = (segment.end != null ? Duration(milliseconds: segment.end!.inMilliseconds) : Duration(milliseconds: plannedTimeMs)) - segments.first.start;
     final duration = endTime - startTime;
     return FrameTimeInfo(startTime: startTime, duration: duration);
   }

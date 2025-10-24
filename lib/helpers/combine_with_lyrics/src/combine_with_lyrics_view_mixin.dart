@@ -8,9 +8,21 @@ import 'package:flutter_desktop_video_capturer/external/flutter_singer/widgets/l
 import 'package:flutter_desktop_video_capturer/external/flutter_singer_tools/models/note_name.dart';
 import 'package:flutter_desktop_video_capturer/external/flutter_singer_tools/models/pitch_name.dart';
 import 'package:flutter_desktop_video_capturer/helpers/combine_with_lyrics/src/models/pitch_data.dart';
-import 'package:flutter_desktop_video_capturer/helpers/detector_images_pitches/src/models/detected_pitch_image_result.dart';
+import 'package:flutter_desktop_video_capturer/helpers/detector_images_pitches/src/detector_images_pitches_mixin.dart';
+import 'package:flutter_desktop_video_capturer/helpers/traceable_history.dart';
 
+enum _Mode {
+  /// 主功能: 整合功能「擷取影片、辨識圖片、結合歌詞」，因此需要另外另外處理 pitch data 的調整
+  mainFeature,
+  /// 單一功能: 根據圖片辨識的結果，進行調整，不包含「擷取影片、圖片辨識」的流程
+  singleFeature,
+}
+
+/// [_Mode.mainFeature] 不可以隨意使用這個 mixin，因為 PitchData 的調整邏輯會不一樣
+/// pitch data 會由 [DetectorImagesPitchesViewMixin] 控制
 mixin CombineWithLyricsViewMixin<T extends StatefulWidget> on State<T> {
+  _Mode _mode = _Mode.singleFeature;
+
   List<PitchData> _pitchData = [];
 
   List<PitchData> get pitchData => _pitchData;
@@ -24,22 +36,29 @@ mixin CombineWithLyricsViewMixin<T extends StatefulWidget> on State<T> {
 
   PitchData? get selectedPitch => _selectedPitch;
 
-  final List<List<PitchData>> _undoStack = [];
+  final TraceableHistory<List<PitchData>> _history = TraceableHistory<List<PitchData>>();
 
-  List<List<PitchData>> get undoStack => _undoStack;
+  bool canUndo() => _history.canUndo;
 
-  final List<List<PitchData>> _redoStack = [];
+  bool canRedo() => _history.canRedo;
 
-  List<List<PitchData>> get redoStack => _redoStack;
-
-  void initCombineWithLyricsData({bool shouldLoadPitchData = true}) {
+  void initCombineWithLyricsData({
+    bool shouldLoadPitchData = true,
+    bool isFromMainFeature = false,
+  }) {
+    _mode = isFromMainFeature ? _Mode.mainFeature : _Mode.singleFeature;
     if (shouldLoadPitchData) {
       _pitchData = demoDryFlowerPitchData.map((e) => PitchData.fromJson(e)).toList();
     }
     _lyricsLines = (demoDryFlower['lines'] as List).map((e) => LyricsLine.fromJson(e)).toList();
   }
 
-  void setPitchDataListByImageResults(List<DetectedPitchImageResult> results) {}
+  void setPitchDataList(List<PitchData> pitchData) {
+    _pushHistory();
+    setState(() {
+      _pitchData = pitchData;
+    });
+  }
 
   void debugPrintPitchDataList() {
     print(
@@ -88,24 +107,23 @@ mixin CombineWithLyricsViewMixin<T extends StatefulWidget> on State<T> {
   }
 
   void _pushHistory() {
-    _undoStack.add(_snapshot(_pitchData));
-    _redoStack.clear(); // 新操作發生時清空 redo
+    _history.add(_snapshot(_pitchData));
   }
 
   List<PitchData> _snapshot(List<PitchData> src) =>
       src.map((p) => PitchData(pitchIndex: p.pitchIndex, start: p.start, end: p.end)).toList();
 
   void undo() {
-    if (_undoStack.isEmpty) return;
-    _redoStack.add(_snapshot(_pitchData));
-    _pitchData = _undoStack.removeLast();
+    final curr = _history.undo();
+    if (curr == null) return;
+    _pitchData = curr;
     setState(() {});
   }
 
   void redo() {
-    if (_redoStack.isEmpty) return;
-    _undoStack.add(_snapshot(_pitchData));
-    _pitchData = _redoStack.removeLast();
+    final curr = _history.redo();
+    if (curr == null) return;
+    _pitchData = curr;
     setState(() {});
   }
 
