@@ -29,6 +29,8 @@ class _MainFeaturePageState extends State<MainFeaturePage> with VideoCapturerVie
 
   int get _defaultIntervalMs => videoCapturer.defaultIntervalMs;
 
+  List<int> get _gridLinesY => gridLinesY;
+
   @override
   void initState() {
     super.initState();
@@ -297,7 +299,56 @@ class _MainFeaturePageState extends State<MainFeaturePage> with VideoCapturerVie
                       ],
                     ),
                     Divider(),
+                    Text('辨識圖片相關'),
+                    Wrap(
+                      spacing: 12,
+                      runSpacing: 12,
+                      children: [
+                        FilledButton.icon(
+                          onPressed: _gridLinesY.isEmpty || isDetectingImagesPitches
+                              ? null
+                              : () async {
+                                  if (isDetectingImagesPitches) return;
+                                  await clearGridLines();
+                                  final inputDir0 = await getCapturedImagesOutputDirectoryIfExists();
+                                  if (inputDir0 == null) return;
+                                  tryRunDetectImagesPitches(inputDir: inputDir0.path);
+                                },
+                          icon: const Icon(Icons.clear),
+                          label: const Text('清空'),
+                        ),
+                        FilledButton.icon(
+                          onPressed: isDetectingImagesPitches
+                              ? null
+                              : () async {
+                                  await debugSetGridLines();
+                                  final inputDir = await getCapturedImagesOutputDirectoryIfExists();
+                                  if (inputDir == null) return;
+                                  await tryRunDetectImagesPitches(inputDir: inputDir.path);
+                                },
+                          icon: const Icon(Icons.download),
+                          label: Text('載入'),
+                        ),
+                      ],
+                    ),
                     Text('預覽擷取圖片'),
+                    Wrap(
+                      children: [
+                        FilledButton.icon(
+                          onPressed: togglePreviewImagesDetectResult,
+                          icon: Icon(isPreviewImagesDetectResult ? Icons.visibility : Icons.visibility_off),
+                          label: Text(isPreviewImagesDetectResult ? '關閉音階預覽' : '開啟音階預覽'),
+                        ),
+                        SizedBox(width: 8),
+                        FilledButton.icon(
+                          onPressed: () async {
+                            detectorImagesPitchesProvider.tmp();
+                          },
+                          icon: const Icon(Icons.bug_report_outlined),
+                          label: const Text('暫時用'),
+                        ),
+                      ],
+                    ),
                     if (previewBytes.isEmpty)
                       const Text('尚無擷取圖片，請先執行擷取')
                     else

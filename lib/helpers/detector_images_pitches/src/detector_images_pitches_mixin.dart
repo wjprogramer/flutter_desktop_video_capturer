@@ -3,9 +3,13 @@ import 'dart:io';
 
 import 'package:flutter/material.dart';
 import 'package:flutter_desktop_video_capturer/helpers/detector_images_pitches/src/detector_images_pitches_provider.dart';
+import 'package:flutter_desktop_video_capturer/helpers/detector_images_pitches/src/models/models.dart';
 import 'package:flutter_desktop_video_capturer/models/capture_meta_file.dart';
+import 'package:flutter_desktop_video_capturer/pages/detector_images_pitches/core/detector.dart';
 import 'package:flutter_desktop_video_capturer/utilities/shared_preference.dart';
+import 'package:flutter_desktop_video_capturer/utils/toast.dart';
 import 'package:flutter_desktop_video_capturer/widgets/detector_images_pitches/image_item.dart';
+import 'package:image/image.dart' as img;
 import 'package:path/path.dart' as p;
 import 'package:provider/provider.dart';
 
@@ -23,6 +27,10 @@ mixin DetectorImagesPitchesViewMixin<T extends StatefulWidget> on State<T> {
   List<int> get gridLinesY => _gridLinesY;
 
   bool _isPreviewImagesDetectResult = true;
+
+  bool _running = false;
+
+  bool get isDetectingImagesPitches => _running;
 
   /// 是否要預覽辨識結果
   bool get isPreviewImagesDetectResult => _isPreviewImagesDetectResult;
@@ -83,6 +91,36 @@ mixin DetectorImagesPitchesViewMixin<T extends StatefulWidget> on State<T> {
     setState(() {
       _isPreviewImagesDetectResult = !_isPreviewImagesDetectResult;
     });
+  }
+
+  Future<void> tryRunDetectImagesPitches({ required String? inputDir}) async {
+    if (inputDir == null || inputDir.isEmpty) {
+      showToast('請先選擇輸入資料夾');
+      return;
+    }
+
+    setState(() => _running = true);
+    final files = getCapturedImageFiles(inputDir);
+
+    final results = <DetectedPitchImageResult>[];
+    for (final f in files) {
+      print('Processing ${f.path} ...');
+      try {
+        final bytes = await f.readAsBytes();
+        final im = img.decodeImage(bytes);
+        if (im == null) {
+          print('  無法解析圖片');
+          continue;
+        }
+        final r = await processImage(p.basename(f.path), im, gridLinesYOverride: _gridLinesY);
+        results.add(r);
+      } catch (e) {
+        print('  失敗: $e');
+      }
+    }
+
+    _provider.setResult(ImagePitchDetectorResult(images: results));
+    setState(() => _running = false);
   }
 
   List<Widget> buildDetectedPitchesImageViews() {

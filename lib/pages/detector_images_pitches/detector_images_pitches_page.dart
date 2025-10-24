@@ -6,12 +6,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter_desktop_video_capturer/helpers/detector_images_pitches/src/detect_pitches_exporter.dart';
 import 'package:flutter_desktop_video_capturer/helpers/detector_images_pitches/src/detector_images_pitches_mixin.dart';
 import 'package:flutter_desktop_video_capturer/helpers/detector_images_pitches/src/detector_images_pitches_provider.dart';
-import 'package:flutter_desktop_video_capturer/helpers/detector_images_pitches/src/models/models.dart';
 import 'package:flutter_desktop_video_capturer/models/capture_meta_file.dart';
-import 'package:image/image.dart' as img;
 import 'package:path/path.dart' as p;
-
-import 'core/detector.dart';
 
 class DetectorImagesPitchesPage extends StatefulWidget {
   const DetectorImagesPitchesPage({super.key});
@@ -27,7 +23,7 @@ class _DetectorImagesPitchesPageState extends State<DetectorImagesPitchesPage> w
 
   String? _inputDir;
   String outputFile = '';
-  bool running = false;
+  bool get running => isDetectingImagesPitches;
   String log = '';
 
   /// 已擷取的圖片檔案列表
@@ -70,36 +66,6 @@ class _DetectorImagesPitchesPageState extends State<DetectorImagesPitchesPage> w
       type: FileType.custom,
     );
     if (res != null) setState(() => outputFile = res);
-  }
-
-  Future<void> _run() async {
-    if (_inputDir == null || _inputDir!.isEmpty) {
-      _append('請先選擇輸入資料夾');
-      return;
-    }
-
-    setState(() => running = true);
-    final files = getCapturedImageFiles(_inputDir!);
-
-    final results = <DetectedPitchImageResult>[];
-    for (final f in files) {
-      _append('Processing ${f.path} ...');
-      try {
-        final bytes = await f.readAsBytes();
-        final im = img.decodeImage(bytes);
-        if (im == null) {
-          _append('  無法解析圖片');
-          continue;
-        }
-        final r = await processImage(p.basename(f.path), im, gridLinesYOverride: _gridLinesY);
-        results.add(r);
-      } catch (e) {
-        _append('  失敗: $e');
-      }
-    }
-
-    _provider.setResult(ImagePitchDetectorResult(images: results));
-    setState(() => running = false);
   }
 
   Future<void> _outputToFile() async {
@@ -157,7 +123,9 @@ class _DetectorImagesPitchesPageState extends State<DetectorImagesPitchesPage> w
                   child: Row(
                     children: [
                       FilledButton.icon(
-                        onPressed: running ? null : _run,
+                        onPressed: running ? null : () => tryRunDetectImagesPitches(
+                          inputDir: _inputDir,
+                        ),
                         icon: const Icon(Icons.play_arrow),
                         label: const Text('開始批量處理'),
                       ),
@@ -181,7 +149,7 @@ class _DetectorImagesPitchesPageState extends State<DetectorImagesPitchesPage> w
                           ? null
                           : () async {
                               await clearGridLines();
-                              _run();
+                              tryRunDetectImagesPitches(inputDir: _inputDir);
                             },
                       icon: const Icon(Icons.clear),
                       label: const Text('清空'),
@@ -189,7 +157,7 @@ class _DetectorImagesPitchesPageState extends State<DetectorImagesPitchesPage> w
                     FilledButton.icon(
                       onPressed: () async {
                         await debugSetGridLines();
-                        await _run();
+                        await tryRunDetectImagesPitches(inputDir: _inputDir);
                       },
                       icon: const Icon(Icons.download),
                       label: Text('載入'),
