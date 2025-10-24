@@ -349,7 +349,7 @@ class _MainFeaturePageState extends State<MainFeaturePage> with VideoCapturerVie
                         ),
                       ],
                     ),
-                    if (previewBytes.isEmpty)
+                    if (capturedImageFiles.isEmpty)
                       const Text('尚無擷取圖片，請先執行擷取')
                     else
                       // Wrap(
