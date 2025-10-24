@@ -3,7 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_desktop_video_capturer/helpers/combine_with_lyrics/src/combine_with_lyrics_view_mixin.dart';
 import 'package:flutter_desktop_video_capturer/helpers/detector_images_pitches/src/detector_images_pitches_mixin.dart';
 import 'package:flutter_desktop_video_capturer/helpers/video_capturer/src/video_capturer_view_mixin.dart';
-import 'package:flutter_desktop_video_capturer/utilities/formatter.dart';
+import 'package:flutter_desktop_video_capturer/widgets/detector_images_pitches/detector_images_pitches_area.dart';
 import 'package:flutter_desktop_video_capturer/widgets/video_capturer/capturer_area.dart';
 import 'package:flutter_desktop_video_capturer/widgets/video_capturer/pick_video_area.dart';
 import 'package:flutter_desktop_video_capturer/widgets/video_capturer/pick_video_hint.dart';
@@ -86,10 +86,7 @@ class _MainFeaturePageState extends State<MainFeaturePage>
             padding: const EdgeInsets.all(16),
             child: ListView(
               children: [
-                PickVideoArea(
-                  pickVideo: pickVideoForCapturer,
-                  currentVideoPath: videoCapturer.videoPath,
-                ),
+                PickVideoArea(pickVideo: pickVideoForCapturer, currentVideoPath: videoCapturer.videoPath),
                 const SizedBox(height: 20),
                 ElevatedButton(
                   onPressed: () async {
@@ -172,38 +169,24 @@ class _MainFeaturePageState extends State<MainFeaturePage>
                   },
                 ),
 
-                Divider(),
-                Text('辨識圖片相關'),
-                Wrap(
-                  spacing: 12,
-                  runSpacing: 12,
-                  children: [
-                    FilledButton.icon(
-                      onPressed: gridLinesY.isEmpty || isDetectingImagesPitches
-                          ? null
-                          : () async {
-                              if (isDetectingImagesPitches) return;
-                              await clearGridLines();
-                              final inputDir0 = await getCapturedImagesOutputDirectoryIfExists();
-                              if (inputDir0 == null) return;
-                              tryRunDetectImagesPitches(inputDir: inputDir0.path);
-                            },
-                      icon: const Icon(Icons.clear),
-                      label: const Text('清空'),
-                    ),
-                    FilledButton.icon(
-                      onPressed: isDetectingImagesPitches
-                          ? null
-                          : () async {
-                              await debugSetGridLines();
-                              final inputDir = await getCapturedImagesOutputDirectoryIfExists();
-                              if (inputDir == null) return;
-                              await tryRunDetectImagesPitches(inputDir: inputDir.path);
-                            },
-                      icon: const Icon(Icons.download),
-                      label: Text('載入'),
-                    ),
-                  ],
+                DetectorImagesPitchesArea(
+                  onClearGridLines: gridLinesY.isEmpty || isDetectingImagesPitches
+                      ? null
+                      : () async {
+                          if (isDetectingImagesPitches) return;
+                          await clearGridLines();
+                          final inputDir0 = await getCapturedImagesOutputDirectoryIfExists();
+                          if (inputDir0 == null) return;
+                          tryRunDetectImagesPitches(inputDir: inputDir0.path);
+                        },
+                  onLoadGridLines: isDetectingImagesPitches
+                      ? null
+                      : () async {
+                          await debugSetGridLines();
+                          final inputDir = await getCapturedImagesOutputDirectoryIfExists();
+                          if (inputDir == null) return;
+                          await tryRunDetectImagesPitches(inputDir: inputDir.path);
+                        },
                 ),
                 Text('選擇預覽或編輯模式'),
                 Wrap(
