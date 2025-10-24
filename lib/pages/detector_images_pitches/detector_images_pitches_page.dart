@@ -8,8 +8,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_desktop_video_capturer/external/flutter_singer_tools/models/note_name.dart';
 import 'package:flutter_desktop_video_capturer/external/flutter_singer_tools/models/pitch_name.dart';
+import 'package:flutter_desktop_video_capturer/helpers/detector_images_pitches/src/detector_images_pitches_mixin.dart';
 import 'package:flutter_desktop_video_capturer/models/capture_meta_file.dart';
-import 'package:flutter_desktop_video_capturer/utilities/shared_preference.dart';
 import 'package:image/image.dart' as img;
 import 'package:path/path.dart' as p;
 import 'package:provider/provider.dart';
@@ -25,18 +25,17 @@ class DetectorImagesPitchesPage extends StatefulWidget {
   State<DetectorImagesPitchesPage> createState() => _DetectorImagesPitchesPageState();
 }
 
-class _DetectorImagesPitchesPageState extends State<DetectorImagesPitchesPage> {
-  final _provider = DetectorImagesPitchesProvider();
+class _DetectorImagesPitchesPageState extends State<DetectorImagesPitchesPage> with DetectorImagesPitchesViewMixin {
+  DetectorImagesPitchesProvider get _provider => detectorImagesPitchesProvider;
+
+  List<int> get _gridLinesY => gridLinesY;
+
   String? _inputDir;
   String outputFile = '';
   bool running = false;
   String log = '';
   List<File> _inputFiles = [];
-  List<int> _gridLinesY = [];
   CaptureMetaFile? _metaFile;
-
-  /// 是否要預覽辨識結果
-  bool _preview = true;
 
   void _append(String s) => setState(() => log += '$s\n');
 
@@ -141,22 +140,6 @@ class _DetectorImagesPitchesPageState extends State<DetectorImagesPitchesPage> {
     _append('完成，已輸出到: $outputFile');
   }
 
-  /// 將單一 Result 的 grid lines 設定到全域 _gridLinesY，並重新計算結果
-  Future<void> _onSetGridLines(File file) async {
-    final result = _provider.lastResult?.getResult(file);
-    if (result == null) return;
-
-    if (_sameList(_gridLinesY, result.gridLinesY)) {
-      // 沒變更就不處理
-      return;
-    }
-
-    MySharedPreference.instance.setGridLines(result.gridLinesY);
-    setState(() {
-      _gridLinesY = result.gridLinesY;
-    });
-  }
-
   List<Widget> _buildItems() {
     final results = <Widget>[];
     int? segmentIndex;
@@ -191,7 +174,7 @@ class _DetectorImagesPitchesPageState extends State<DetectorImagesPitchesPage> {
           child: ImageItem(
             provider: _provider,
             image: f,
-            preview: _preview,
+            preview: isPreviewImagesDetectResult,
             tools: ChangeNotifierProvider.value(
               value: _provider,
               child: Builder(
@@ -205,7 +188,7 @@ class _DetectorImagesPitchesPageState extends State<DetectorImagesPitchesPage> {
                         mainAxisAlignment: MainAxisAlignment.end,
                         children: [
                           IconButton(
-                            onPressed: () => _onSetGridLines(f),
+                            onPressed: () => onSetGridLines(f),
                             tooltip: '使用此圖片的 Grid Lines',
                             icon: Icon(Icons.menu, color: Colors.white),
                           ),
@@ -319,7 +302,7 @@ class _DetectorImagesPitchesPageState extends State<DetectorImagesPitchesPage> {
                       onPressed: _gridLinesY.isEmpty
                           ? null
                           : () async {
-                              setState(() => _gridLinesY = []);
+                              await clearGridLines();
                               _run();
                             },
                       icon: const Icon(Icons.clear),
@@ -327,9 +310,7 @@ class _DetectorImagesPitchesPageState extends State<DetectorImagesPitchesPage> {
                     ),
                     FilledButton.icon(
                       onPressed: () async {
-                        final gridLines = await MySharedPreference.instance.getGridLines();
-                        if (gridLines == null || gridLines.isEmpty) return;
-                        setState(() => _gridLinesY = gridLines);
+                        await debugSetGridLines();
                         await _run();
                       },
                       icon: const Icon(Icons.download),
@@ -367,9 +348,9 @@ class _DetectorImagesPitchesPageState extends State<DetectorImagesPitchesPage> {
                 mainAxisAlignment: MainAxisAlignment.start,
                 children: [
                   FilledButton.icon(
-                    onPressed: () => setState(() => _preview = !_preview),
-                    icon: Icon(_preview ? Icons.visibility : Icons.visibility_off),
-                    label: Text(_preview ? '關閉圖片預覽' : '開啟圖片預覽'),
+                    onPressed: togglePreviewImagesDetectResult,
+                    icon: Icon(isPreviewImagesDetectResult ? Icons.visibility : Icons.visibility_off),
+                    label: Text(isPreviewImagesDetectResult ? '關閉音階預覽' : '開啟音階預覽'),
                   ),
                   SizedBox(width: 8),
                   FilledButton.icon(
@@ -835,13 +816,4 @@ int getBarIndex(List<int> gridLinesY, double y0, double y1) {
 
   // 下半（靠近較大的 y，即較「下面」那條線）→ 偶數；上半 → 奇數
   return (c < midPt) ? (baseEven + 1) : baseEven;
-}
-
-/// 比對兩個 List 是否內容相同（順序也要相同）
-bool _sameList<T>(List<T> a, List<T> b) {
-  if (a.length != b.length) return false;
-  for (int i = 0; i < a.length; i++) {
-    if (a[i] != b[i]) return false;
-  }
-  return true;
 }
