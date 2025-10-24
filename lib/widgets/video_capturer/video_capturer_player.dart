@@ -2,6 +2,7 @@ import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
 import 'package:flutter_desktop_video_capturer/helpers/video_capturer/src/video_capturer.dart';
+import 'package:flutter_desktop_video_capturer/utilities/formatter.dart';
 import 'package:video_player/video_player.dart';
 
 class VideoCapturerPlayer extends StatefulWidget {
@@ -16,6 +17,8 @@ class VideoCapturerPlayer extends StatefulWidget {
 }
 
 class _VideoCapturerPlayerState extends State<VideoCapturerPlayer> {
+  final Key _playerViewKey = UniqueKey();
+
   VideoPlayerController get videoController => widget.videoController;
 
   VideoCapturer get videoCapturer => widget.videoCapturer;
@@ -46,7 +49,7 @@ class _VideoCapturerPlayerState extends State<VideoCapturerPlayer> {
       final r = videoCapturer.rectVideoPx!;
       debugPrint(
         '選取(影片像素): x=${r.left.toStringAsFixed(1)}, y=${r.top.toStringAsFixed(1)}, '
-        'w=${r.width.toStringAsFixed(1)}, h=${r.height.toStringAsFixed(1)}',
+            'w=${r.width.toStringAsFixed(1)}, h=${r.height.toStringAsFixed(1)}',
       );
     }
   }
@@ -55,33 +58,90 @@ class _VideoCapturerPlayerState extends State<VideoCapturerPlayer> {
   Widget build(BuildContext context) {
     return Container(
       color: Colors.black,
-      width: double.infinity,
-      alignment: Alignment.center,
-      constraints: BoxConstraints(maxHeight: 450),
-      child: AspectRatio(
-        aspectRatio: videoController.value.aspectRatio,
-        child: Stack(
+      child: Theme(
+        data: ThemeData.dark(),
+        child: Column(
           children: [
-            VideoPlayer(videoController),
-            // 透明互動層
-            Positioned.fill(
-              child: LayoutBuilder(
-                builder: (context, box) {
-                  final paintSize = Size(box.maxWidth, box.maxHeight); // 當前顯示大小
-                  return GestureDetector(
-                    behavior: HitTestBehavior.opaque,
-                    onPanStart: (d) => _onPanStart(d, paintSize),
-                    onPanUpdate: (d) => _onPanUpdate(d, paintSize),
-                    onPanEnd: (_) => _onPanEnd(),
-                    child: CustomPaint(
-                      painter: _RectOnVideoPainter(
-                        rectVideoPx: videoCapturer.rectVideoPx,
-                        toScreen: (rv) => videoCapturer.videoRectToScreen(rv, paintSize),
+            LayoutBuilder(builder: (context, constraints) {
+              const maxHeight = 450.0;
+              final videoAspectRatio = videoController.value.aspectRatio;
+              final widthThreshold = maxHeight * videoAspectRatio;
+              final noCenter = constraints.maxWidth <= widthThreshold;
+
+              Widget playerView = Container(
+                color: Colors.black,
+                width: double.infinity,
+                alignment: noCenter ? null : Alignment.center,
+                constraints: BoxConstraints(maxHeight: maxHeight),
+                child: AspectRatio(
+                  aspectRatio: videoAspectRatio,
+                  child: Stack(
+                    children: [
+                      VideoPlayer(videoController, key: _playerViewKey),
+                      // 透明互動層
+                      Positioned.fill(
+                        child: LayoutBuilder(
+                          builder: (context, box) {
+                            final paintSize = Size(box.maxWidth, box.maxHeight); // 當前顯示大小
+                            return GestureDetector(
+                              behavior: HitTestBehavior.opaque,
+                              onPanStart: (d) => _onPanStart(d, paintSize),
+                              onPanUpdate: (d) => _onPanUpdate(d, paintSize),
+                              onPanEnd: (_) => _onPanEnd(),
+                              child: CustomPaint(
+                                painter: _RectOnVideoPainter(
+                                  rectVideoPx: videoCapturer.rectVideoPx,
+                                  toScreen: (rv) => videoCapturer.videoRectToScreen(rv, paintSize),
+                                ),
+                              ),
+                            );
+                          },
+                        ),
                       ),
-                    ),
-                  );
-                },
-              ),
+                    ],
+                  ),
+                ),
+              );
+
+              return playerView;
+            },
+            ),
+            Row(
+              children: [
+                IconButton(
+                  onPressed: () {
+                    if (videoController.value.isPlaying) {
+                      videoController.pause();
+                    } else {
+                      videoController.play();
+                    }
+                    setState(() { });
+                  },
+                  icon: Icon(videoController.value.isPlaying ? Icons.pause : Icons.play_arrow),
+                ),
+                Text(
+                  '${Formatter.durationText(videoController.value.position)} / ${Formatter.durationText(videoController.value.duration)}',
+                  style: TextStyle(color: Colors.white),
+                ),
+                Spacer(),
+                ConstrainedBox(
+                  constraints: BoxConstraints(maxWidth: 150),
+                  child: Slider(
+                    value: videoController.value.volume,
+                    onChanged: (value) {
+                      videoController.setVolume(value);
+                      setState(() {});
+                    },
+                  ),
+                ),
+                IconButton(
+                  onPressed: () {
+                    videoController.setVolume(videoController.value.volume > 0 ? 0 : 1);
+                    setState(() {});
+                  },
+                  icon: Icon(videoController.value.volume == 0 ? Icons.volume_off_outlined : Icons.volume_up_outlined),
+                ),
+              ],
             ),
           ],
         ),

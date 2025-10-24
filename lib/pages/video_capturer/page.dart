@@ -59,19 +59,6 @@ class _CapturerPageState extends State<CapturerPage> with VideoCapturerViewMixin
                           scrollDirection: Axis.horizontal,
                           child: Row(
                             children: [
-                              IconButton(
-                                onPressed: () {
-                                  if (videoController.value.isPlaying) {
-                                    videoController.pause();
-                                  } else {
-                                    videoController.play();
-                                  }
-                                },
-                                icon: Icon(videoController.value.isPlaying ? Icons.pause : Icons.play_arrow),
-                              ),
-                              Text(
-                                '${Formatter.durationText(videoController.value.position)} / ${Formatter.durationText(videoController.value.duration)}',
-                              ),
                               // 快速設定預設 interval
                               const Text('新規則間隔(ms): '),
                               SizedBox(
@@ -135,31 +122,6 @@ class _CapturerPageState extends State<CapturerPage> with VideoCapturerViewMixin
                       ],
                     );
                   },
-                ),
-                Row(),
-                Row(
-                  children: [
-                    Text('Volume'),
-                    // slider
-                    Expanded(
-                      child: Slider(
-                        value: videoController.value.volume,
-                        onChanged: (value) {
-                          videoController.setVolume(value);
-                          setState(() {});
-                        },
-                      ),
-                    ),
-                    IconButton(
-                      onPressed: () {
-                        videoController.setVolume(videoController.value.volume > 0 ? 0 : 1);
-                        setState(() {});
-                      },
-                      icon: Icon(
-                        videoController.value.volume == 0 ? Icons.volume_off_outlined : Icons.volume_up_outlined,
-                      ),
-                    ),
-                  ],
                 ),
                 Text('個人常用設定'),
                 Wrap(
