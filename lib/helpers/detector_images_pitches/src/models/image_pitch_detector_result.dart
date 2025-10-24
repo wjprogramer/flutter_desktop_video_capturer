@@ -1,7 +1,6 @@
 import 'dart:io';
 
 import 'package:equatable/equatable.dart';
-import 'package:flutter_desktop_video_capturer/pages/detector_images_pitches/core/detector.dart';
 import 'package:path/path.dart' as p;
 
 import 'detected_pitch_image_result.dart';

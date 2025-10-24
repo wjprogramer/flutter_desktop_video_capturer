@@ -1,6 +1,5 @@
 import 'dart:math' as math;
 
-import 'package:equatable/equatable.dart';
 import 'package:flutter_desktop_video_capturer/helpers/detector_images_pitches/src/models/models.dart';
 import 'package:image/image.dart' as img;
 

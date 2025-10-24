@@ -6,9 +6,6 @@ import 'package:flutter_desktop_video_capturer/pages/detector_images_pitches/det
 import 'package:flutter_desktop_video_capturer/pages/main_feature/main_feature_page.dart';
 import 'package:flutter_desktop_video_capturer/pages/process_horizontal_images/process_horizontal_images_page.dart';
 import 'package:flutter_desktop_video_capturer/pages/video_capturer/page.dart';
-import 'package:flutter_desktop_video_capturer/third_party/open_file/open_file.dart';
-import 'package:flutter_desktop_video_capturer/third_party/path_provider/path_provider.dart';
-import 'package:flutter_desktop_video_capturer/utilities/file_structure_utility.dart';
 
 class HomePage extends StatelessWidget {
   const HomePage({super.key});

@@ -450,7 +450,7 @@ class _Legend extends StatelessWidget {
     return Row(
       mainAxisSize: MainAxisSize.min,
       children: [
-        Container(width: 14, height: 14, color: color.withOpacity(0.5)),
+        Container(width: 14, height: 14, color: color.withValues(alpha: 0.5)),
         const SizedBox(width: 6),
         Text(label),
       ],
@@ -501,7 +501,7 @@ class _PanoramaPainter extends CustomPainter {
         canvas.drawRect(
           r,
           Paint()
-            ..color = Colors.black.withOpacity(0.7)
+            ..color = Colors.black.withValues(alpha: 0.7)
             ..style = PaintingStyle.fill,
         );
       }

@@ -4,8 +4,6 @@ import 'package:flutter_desktop_video_capturer/helpers/detector_images_pitches/s
 import 'package:flutter_desktop_video_capturer/helpers/detector_images_pitches/src/utils.dart';
 import 'package:flutter_desktop_video_capturer/models/capture_meta_file.dart';
 
-import '../../../pages/detector_images_pitches/detector_images_pitches_page.dart';
-
 class DetectPitchesExporter {
   DetectPitchesExporter({required this.previousStepResult, required this.metaFile, required this.inputFiles});
 

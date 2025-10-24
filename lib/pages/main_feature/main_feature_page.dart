@@ -1,11 +1,33 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_desktop_video_capturer/helpers/detector_images_pitches/src/detector_images_pitches_mixin.dart';
 import 'package:flutter_desktop_video_capturer/helpers/video_capturer/src/capture_segment.dart';
-import 'package:flutter_desktop_video_capturer/helpers/video_capturer/src/models.dart';
 import 'package:flutter_desktop_video_capturer/helpers/video_capturer/src/video_capturer_view_mixin.dart';
 import 'package:flutter_desktop_video_capturer/utilities/formatter.dart';
 import 'package:flutter_desktop_video_capturer/widgets/video_capturer/video_capturer_player.dart';
 import 'package:flutter_desktop_video_capturer/widgets/video_capturer/video_progress_and_rules_preview_slider.dart';
+
+enum _PitchesEditorMode {
+  byImage,
+  byLyrics;
+
+  String get displayName {
+    switch (this) {
+      case _PitchesEditorMode.byImage:
+        return '圖片辨識模式';
+      case _PitchesEditorMode.byLyrics:
+        return '歌詞編輯模式';
+    }
+  }
+
+  IconData get iconData {
+    switch (this) {
+      case _PitchesEditorMode.byImage:
+        return Icons.image;
+      case _PitchesEditorMode.byLyrics:
+        return Icons.subtitles;
+    }
+  }
+}
 
 /// 主要功能:
 ///
@@ -23,18 +45,18 @@ class MainFeaturePage extends StatefulWidget {
 }
 
 class _MainFeaturePageState extends State<MainFeaturePage> with VideoCapturerViewMixin, DetectorImagesPitchesViewMixin {
-  List<CaptureRule> get _rules => videoCapturer.rules;
-
-  List<Duration> get _stopPoints => videoCapturer.stopPoints;
-
-  int get _defaultIntervalMs => videoCapturer.defaultIntervalMs;
-
-  List<int> get _gridLinesY => gridLinesY;
+  _PitchesEditorMode _mode = _PitchesEditorMode.byImage;
 
   @override
   void initState() {
     super.initState();
     initVideoCapturer();
+  }
+
+  void _updateMode(_PitchesEditorMode mode) {
+    setState(() {
+      _mode = mode;
+    });
   }
 
   @override
@@ -112,7 +134,9 @@ class _MainFeaturePageState extends State<MainFeaturePage> with VideoCapturerVie
                                     child: TextField(
                                       decoration: const InputDecoration(isDense: true, border: OutlineInputBorder()),
                                       keyboardType: TextInputType.number,
-                                      controller: TextEditingController(text: _defaultIntervalMs.toString()),
+                                      controller: TextEditingController(
+                                        text: videoCapturer.defaultIntervalMs.toString(),
+                                      ),
                                       onSubmitted: (v) {
                                         final ms = int.tryParse(v.trim());
                                         if (ms == null || ms <= 0) {
@@ -167,11 +191,11 @@ class _MainFeaturePageState extends State<MainFeaturePage> with VideoCapturerVie
                             // 規則調整清單（可調整每個 interval / 刪除）
                             const Text('擷取規則', style: TextStyle(fontWeight: FontWeight.bold)),
                             ListView.builder(
-                              itemCount: _rules.length,
+                              itemCount: videoCapturer.rules.length,
                               shrinkWrap: true,
                               physics: const NeverScrollableScrollPhysics(),
                               itemBuilder: (context, i) {
-                                final r = _rules[i];
+                                final r = videoCapturer.rules[i];
                                 // 即時計算這條規則的 end（顯示用）
                                 final seg = videoCapturer
                                     .buildSegments(videoController.value.duration)
@@ -196,7 +220,10 @@ class _MainFeaturePageState extends State<MainFeaturePage> with VideoCapturerVie
                                             final ms = int.tryParse(v.trim());
                                             if (ms != null && ms > 0) {
                                               setState(() {
-                                                _rules[i] = r.copyWith(interval: Duration(milliseconds: ms));
+                                                // FIXME: 這邊會有問題，videoCapturer.rules 是 unmodifiable list
+                                                videoCapturer.rules[i] = r.copyWith(
+                                                  interval: Duration(milliseconds: ms),
+                                                );
                                               });
                                             }
                                           },
@@ -211,11 +238,11 @@ class _MainFeaturePageState extends State<MainFeaturePage> with VideoCapturerVie
                             const SizedBox(height: 8),
                             const Text('停止點', style: TextStyle(fontWeight: FontWeight.bold)),
                             ListView.builder(
-                              itemCount: _stopPoints.length,
+                              itemCount: videoCapturer.stopPoints.length,
                               shrinkWrap: true,
                               physics: const NeverScrollableScrollPhysics(),
                               itemBuilder: (context, i) {
-                                final s = _stopPoints[i];
+                                final s = videoCapturer.stopPoints[i];
                                 return ListTile(
                                   dense: true,
                                   leading: const Icon(Icons.stop_circle, color: Colors.red),
@@ -305,7 +332,7 @@ class _MainFeaturePageState extends State<MainFeaturePage> with VideoCapturerVie
                       runSpacing: 12,
                       children: [
                         FilledButton.icon(
-                          onPressed: _gridLinesY.isEmpty || isDetectingImagesPitches
+                          onPressed: gridLinesY.isEmpty || isDetectingImagesPitches
                               ? null
                               : () async {
                                   if (isDetectingImagesPitches) return;
@@ -331,35 +358,53 @@ class _MainFeaturePageState extends State<MainFeaturePage> with VideoCapturerVie
                         ),
                       ],
                     ),
-                    Text('預覽擷取圖片'),
+                    Text('選擇預覽或編輯模式'),
                     Wrap(
-                      children: [
-                        FilledButton.icon(
-                          onPressed: togglePreviewImagesDetectResult,
-                          icon: Icon(isPreviewImagesDetectResult ? Icons.visibility : Icons.visibility_off),
-                          label: Text(isPreviewImagesDetectResult ? '關閉音階預覽' : '開啟音階預覽'),
-                        ),
-                        SizedBox(width: 8),
-                        FilledButton.icon(
-                          onPressed: () async {
-                            detectorImagesPitchesProvider.tmp();
+                      spacing: 8,
+                      runSpacing: 8,
+                      children: _PitchesEditorMode.values.map((mode) {
+                        return ChoiceChip(
+                          label: Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [Icon(mode.iconData), const SizedBox(width: 8), Text(mode.displayName)],
+                          ),
+                          selected: _mode == mode,
+                          showCheckmark: false,
+                          onSelected: (selected) {
+                            if (selected) {
+                              _updateMode(mode);
+                            }
                           },
-                          icon: const Icon(Icons.bug_report_outlined),
-                          label: const Text('暫時用'),
-                        ),
-                      ],
+                        );
+                      }).toList(),
                     ),
-                    if (capturedImageFiles.isEmpty)
-                      const Text('尚無擷取圖片，請先執行擷取')
-                    else
-                      // Wrap(
-                      //   spacing: 8,
-                      //   runSpacing: 8,
-                      //   children: previewBytes.entries
-                      //       .map((b) => Image.memory(b.value, width: 120, height: 90, fit: BoxFit.cover))
-                      //       .toList(),
-                      // ),
-                      ...buildDetectedPitchesImageViews(),
+                    ...switch (_mode) {
+                      _PitchesEditorMode.byImage => [
+                        Text('預覽擷取圖片'),
+                        Wrap(
+                          children: [
+                            FilledButton.icon(
+                              onPressed: togglePreviewImagesDetectResult,
+                              icon: Icon(isPreviewImagesDetectResult ? Icons.visibility : Icons.visibility_off),
+                              label: Text(isPreviewImagesDetectResult ? '關閉音階預覽' : '開啟音階預覽'),
+                            ),
+                            SizedBox(width: 8),
+                            FilledButton.icon(
+                              onPressed: () async {
+                                detectorImagesPitchesProvider.tmp();
+                              },
+                              icon: const Icon(Icons.bug_report_outlined),
+                              label: const Text('暫時用'),
+                            ),
+                          ],
+                        ),
+                        if (capturedImageFiles.isEmpty)
+                          const Text('尚無擷取圖片，請先執行擷取')
+                        else
+                          ...buildDetectedPitchesImageViews(),
+                      ],
+                      _PitchesEditorMode.byLyrics => [],
+                    },
                   ],
                 ],
               ),

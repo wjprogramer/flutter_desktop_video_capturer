@@ -4,7 +4,6 @@ import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_desktop_video_capturer/helpers/detector_images_pitches/src/models/models.dart';
 import 'package:flutter_desktop_video_capturer/helpers/detector_images_pitches/src/tmp_data.dart';
-import 'package:flutter_desktop_video_capturer/pages/detector_images_pitches/core/detector.dart';
 
 class DetectorImagesPitchesProvider extends ChangeNotifier {
   DetectorImagesPitchesProvider();

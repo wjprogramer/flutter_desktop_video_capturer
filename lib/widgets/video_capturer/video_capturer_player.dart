@@ -102,7 +102,7 @@ class _RectOnVideoPainter extends CustomPainter {
     final r = toScreen(_normalize(rectVideoPx!)); // 先正規化，確保 left<right, top<bottom
 
     final fill = Paint()
-      ..color = Colors.red.withOpacity(0.2)
+      ..color = Colors.red.withValues(alpha: 0.2)
       ..style = PaintingStyle.fill;
     final stroke = Paint()
       ..color = Colors.red
