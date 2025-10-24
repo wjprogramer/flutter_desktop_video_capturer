@@ -4,6 +4,7 @@ import 'package:flutter_desktop_video_capturer/helpers/detector_images_pitches/s
 import 'package:flutter_desktop_video_capturer/helpers/video_capturer/src/capture_segment.dart';
 import 'package:flutter_desktop_video_capturer/helpers/video_capturer/src/video_capturer_view_mixin.dart';
 import 'package:flutter_desktop_video_capturer/utilities/formatter.dart';
+import 'package:flutter_desktop_video_capturer/widgets/video_capturer/pick_video_area.dart';
 import 'package:flutter_desktop_video_capturer/widgets/video_capturer/pick_video_hint.dart';
 import 'package:flutter_desktop_video_capturer/widgets/video_capturer/video_capturer_player.dart';
 import 'package:flutter_desktop_video_capturer/widgets/video_capturer/video_progress_and_rules_preview_slider.dart';
@@ -78,9 +79,10 @@ class _MainFeaturePageState extends State<MainFeaturePage>
             padding: const EdgeInsets.all(16),
             child: ListView(
               children: [
-                ElevatedButton(onPressed: pickVideoForCapturer, child: const Text('選擇影片')),
-                if (videoCapturer.videoPath != null) Text('影片: ${videoCapturer.videoPath}'),
-                const SizedBox(height: 20),
+                PickVideoArea(
+                  pickVideo: pickVideoForCapturer,
+                  currentVideoPath: videoCapturer.videoPath,
+                ),
                 const SizedBox(height: 20),
                 ElevatedButton(
                   onPressed: () async {
@@ -106,7 +108,6 @@ class _MainFeaturePageState extends State<MainFeaturePage>
                   child: const Text('開始擷取'),
                 ),
                 VideoCapturerPlayer(videoController: videoController, videoCapturer: videoCapturer),
-
                 ValueListenableBuilder(
                   valueListenable: videoController,
                   builder: (context, value, child) {
@@ -254,7 +255,6 @@ class _MainFeaturePageState extends State<MainFeaturePage>
                     );
                   },
                 ),
-                Row(),
                 Row(
                   children: [
                     Text('Volume'),

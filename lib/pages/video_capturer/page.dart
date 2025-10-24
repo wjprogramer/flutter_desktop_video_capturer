@@ -3,6 +3,7 @@ import 'package:flutter_desktop_video_capturer/helpers/video_capturer/src/captur
 import 'package:flutter_desktop_video_capturer/helpers/video_capturer/src/models.dart';
 import 'package:flutter_desktop_video_capturer/helpers/video_capturer/src/video_capturer_view_mixin.dart';
 import 'package:flutter_desktop_video_capturer/utilities/formatter.dart';
+import 'package:flutter_desktop_video_capturer/widgets/video_capturer/pick_video_area.dart';
 import 'package:flutter_desktop_video_capturer/widgets/video_capturer/pick_video_hint.dart';
 import 'package:flutter_desktop_video_capturer/widgets/video_capturer/video_capturer_player.dart';
 import 'package:flutter_desktop_video_capturer/widgets/video_capturer/video_progress_and_rules_preview_slider.dart';
@@ -44,9 +45,10 @@ class _CapturerPageState extends State<CapturerPage> with VideoCapturerViewMixin
             padding: const EdgeInsets.all(16),
             child: ListView(
               children: [
-                ElevatedButton(onPressed: pickVideoForCapturer, child: const Text('選擇影片')),
-                if (videoCapturer.videoPath != null) Text('影片: ${videoCapturer.videoPath}'),
-                const SizedBox(height: 20),
+                PickVideoArea(
+                  pickVideo: pickVideoForCapturer,
+                  currentVideoPath: videoCapturer.videoPath,
+                ),
                 const SizedBox(height: 20),
                 ElevatedButton(onPressed: tryRunCapturer, child: const Text('開始擷取')),
                 VideoCapturerPlayer(videoController: videoController, videoCapturer: videoCapturer),
