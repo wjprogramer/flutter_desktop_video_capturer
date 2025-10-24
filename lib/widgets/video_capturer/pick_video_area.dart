@@ -14,6 +14,7 @@ class PickVideoArea extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return ContentArea(
+      topMargin: 0,
       title: '選擇影片',
       child: Row(
         children: [

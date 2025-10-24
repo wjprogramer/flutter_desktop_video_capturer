@@ -3,6 +3,7 @@ import 'dart:typed_data';
 
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter_desktop_video_capturer/helpers/video_capturer/src/models.dart';
 import 'package:flutter_desktop_video_capturer/helpers/video_capturer/src/video_capturer.dart';
 import 'package:flutter_desktop_video_capturer/models/capture_meta_file.dart';
 import 'package:flutter_desktop_video_capturer/third_party/uuid/uuid.dart';
@@ -251,6 +252,16 @@ mixin VideoCapturerViewMixin<T extends StatefulWidget> on State<T> {
     // 若你想同時把「最近那條 rule 的 interval」也一併更新，可解除下列註解：
     // final idx = rules.indexWhere((r) => r.start == nearest.start);
     // if (idx >= 0) setState(() => rules[idx] = rules[idx].copyWith(interval: Duration(milliseconds: ms)));
+  }
+
+  void onRuleIntervalChange(String v, int i, CaptureRule r) {
+    final ms = int.tryParse(v.trim());
+    if (ms != null && ms > 0) {
+      setState(() {
+        // FIXME: 不要直接改 rule
+        videoCapturer.rules[i] = r.copyWith(interval: Duration(milliseconds: ms));
+      });
+    }
   }
 
   // void reloadPreviewImages() {

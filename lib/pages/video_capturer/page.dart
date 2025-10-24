@@ -1,8 +1,8 @@
 import 'package:flutter/material.dart';
-import 'package:flutter_desktop_video_capturer/helpers/video_capturer/src/capture_segment.dart';
 import 'package:flutter_desktop_video_capturer/helpers/video_capturer/src/models.dart';
 import 'package:flutter_desktop_video_capturer/helpers/video_capturer/src/video_capturer_view_mixin.dart';
 import 'package:flutter_desktop_video_capturer/utilities/formatter.dart';
+import 'package:flutter_desktop_video_capturer/widgets/video_capturer/capturer_area.dart';
 import 'package:flutter_desktop_video_capturer/widgets/video_capturer/pick_video_area.dart';
 import 'package:flutter_desktop_video_capturer/widgets/video_capturer/pick_video_hint.dart';
 import 'package:flutter_desktop_video_capturer/widgets/video_capturer/video_capturer_player.dart';
@@ -45,10 +45,7 @@ class _CapturerPageState extends State<CapturerPage> with VideoCapturerViewMixin
             padding: const EdgeInsets.all(16),
             child: ListView(
               children: [
-                PickVideoArea(
-                  pickVideo: pickVideoForCapturer,
-                  currentVideoPath: videoCapturer.videoPath,
-                ),
+                PickVideoArea(pickVideo: pickVideoForCapturer, currentVideoPath: videoCapturer.videoPath),
                 const SizedBox(height: 20),
                 ElevatedButton(onPressed: tryRunCapturer, child: const Text('開始擷取')),
                 VideoCapturerPlayer(videoController: videoController, videoCapturer: videoCapturer),
@@ -134,66 +131,7 @@ class _CapturerPageState extends State<CapturerPage> with VideoCapturerViewMixin
                           videoCapturer: videoCapturer,
                         ),
 
-                        // 規則調整清單（可調整每個 interval / 刪除）
-                        const Text('擷取規則', style: TextStyle(fontWeight: FontWeight.bold)),
-                        ListView.builder(
-                          itemCount: _rules.length,
-                          shrinkWrap: true,
-                          physics: const NeverScrollableScrollPhysics(),
-                          itemBuilder: (context, i) {
-                            final r = _rules[i];
-                            // 即時計算這條規則的 end（顯示用）
-                            final seg = videoCapturer
-                                .buildSegments(videoController.value.duration)
-                                .firstWhere((s) => s.rule.start == r.start, orElse: () => CaptureSegment(rule: r));
-                            final showEnd = seg.rule.end;
-                            return ListTile(
-                              dense: true,
-                              leading: const Icon(Icons.play_circle, color: Colors.green),
-                              title: Text(
-                                'Start ${Formatter.durationText(r.start)} → End ${showEnd != null ? Formatter.durationText(showEnd) : '依自動計算'}',
-                              ),
-                              subtitle: Row(
-                                children: [
-                                  const Text('間隔(ms): '),
-                                  SizedBox(
-                                    width: 100,
-                                    child: TextFormField(
-                                      initialValue: r.interval.inMilliseconds.toString(),
-                                      keyboardType: TextInputType.number,
-                                      decoration: const InputDecoration(isDense: true),
-                                      onChanged: (v) {
-                                        final ms = int.tryParse(v.trim());
-                                        if (ms != null && ms > 0) {
-                                          setState(() {
-                                            _rules[i] = r.copyWith(interval: Duration(milliseconds: ms));
-                                          });
-                                        }
-                                      },
-                                    ),
-                                  ),
-                                ],
-                              ),
-                              trailing: IconButton(icon: const Icon(Icons.delete), onPressed: () => removeRule(i)),
-                            );
-                          },
-                        ),
-                        const SizedBox(height: 8),
-                        const Text('停止點', style: TextStyle(fontWeight: FontWeight.bold)),
-                        ListView.builder(
-                          itemCount: _stopPoints.length,
-                          shrinkWrap: true,
-                          physics: const NeverScrollableScrollPhysics(),
-                          itemBuilder: (context, i) {
-                            final s = _stopPoints[i];
-                            return ListTile(
-                              dense: true,
-                              leading: const Icon(Icons.stop_circle, color: Colors.red),
-                              title: Text('Stop @ ${Formatter.durationText(s)}'),
-                              trailing: IconButton(icon: const Icon(Icons.delete), onPressed: () => removeStop(i)),
-                            );
-                          },
-                        ),
+                        CapturerSettingsArea(this),
                       ],
                     );
                   },
