@@ -6,6 +6,7 @@ import 'package:flutter_desktop_video_capturer/helpers/detector_images_pitches/s
 import 'package:flutter_desktop_video_capturer/helpers/detector_images_pitches/src/detector_images_pitches_mixin.dart';
 import 'package:flutter_desktop_video_capturer/helpers/detector_images_pitches/src/models/detected_pitch_images_adjust_time_info.dart';
 import 'package:flutter_desktop_video_capturer/helpers/traceable_history.dart';
+import 'package:flutter_desktop_video_capturer/helpers/tuning_fork_player.dart';
 import 'package:flutter_desktop_video_capturer/helpers/video_capturer/src/video_capturer_view_mixin.dart';
 import 'package:flutter_desktop_video_capturer/widgets/common/area.dart';
 import 'package:flutter_desktop_video_capturer/widgets/detector_images_pitches/detector_images_pitches_area.dart';
@@ -63,6 +64,8 @@ class _MainFeaturePageState extends State<MainFeaturePage>
   late WebviewController _webController;
   late TuningForkController _tuningController;
 
+  late final TuningForkPlayer _tuningForkPlayer;
+
   bool _isWebInitialized = false;
 
   _PitchesEditorMode _mode = _PitchesEditorMode.byImage;
@@ -75,7 +78,8 @@ class _MainFeaturePageState extends State<MainFeaturePage>
   void initState() {
     super.initState();
     _webController = WebviewController();
-    _tuningController = TuningForkController();
+    _tuningController = TuningForkController(windowsWebController: _webController);
+    _tuningForkPlayer = TuningForkPlayer(_tuningController);
 
     initVideoCapturer();
     initCombineWithLyricsData(shouldLoadPitchData: false);
@@ -177,6 +181,10 @@ class _MainFeaturePageState extends State<MainFeaturePage>
     setState(() {});
 
     _tryUpdatePitchDataList(adjustPitchInfo: _adjustPitchTimeInfo);
+  }
+
+  Future<void> _playPreviewMusic() async {
+    final sw = Stopwatch()..start();
   }
 
   Widget _buildBody(BuildContext context) {
@@ -446,7 +454,18 @@ class _MainFeaturePageState extends State<MainFeaturePage>
                   ],
                 ),
               ),
-              Container(margin: const EdgeInsets.only(top: 16), height: 100, child: Webview(_webController)),
+              Container(margin: const EdgeInsets.only(top: 16), height: 100, child: Webview(_webController,
+              )),
+              ElevatedButton(
+                onPressed: () {
+                  if (_tuningForkPlayer.isPlaying) {
+                    _tuningForkPlayer.stop();
+                  } else {
+                    _tuningForkPlayer.playSequence(pitchData);
+                  }
+                },
+                child: Text('Play Test'),
+              ),
               if (!isGreaterTabletWidth)
                 ContentArea(
                   title: '預覽內容',
