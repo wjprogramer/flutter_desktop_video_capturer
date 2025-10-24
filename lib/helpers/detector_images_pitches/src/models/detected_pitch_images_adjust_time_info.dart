@@ -20,6 +20,17 @@ class DetectedPitchImagesAdjustTimeInfo extends Equatable {
     return totalDiff;
   }
 
+  /// 取得調整前時間
+  Duration getOriginalDuration(Duration adjustedTime) {
+    Duration originalTime = adjustedTime;
+    for (final detail in adjustDetails) {
+      if (detail.start <= originalTime) {
+        originalTime -= detail.diff;
+      }
+    }
+    return originalTime;
+  }
+
   /// 根據開始時間、需要調整的時間，產生一個新的實例
   DetectedPitchImagesAdjustTimeInfo cloneAndAddAdjustDetail(Duration start, Duration diff) {
     final newDetails = List<AdjustTimeInfo>.from(adjustDetails)

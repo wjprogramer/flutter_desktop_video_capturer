@@ -142,13 +142,6 @@ class _MainFeaturePageState extends State<MainFeaturePage>
     );
     var pitchDataList = exporter.exportToPitchDataList();
 
-    // debug
-    final p = pitchDataList[14];
-    final diff = adjustPitchInfo.getDiffDuration(p.start);
-    print(p);
-    print(p.start + diff);
-    // debug end
-
     pitchDataList = pitchDataList.map((e) {
       final diff = adjustPitchInfo.getDiffDuration(e.start);
       final adjustedStart = e.start + diff;
@@ -170,12 +163,27 @@ class _MainFeaturePageState extends State<MainFeaturePage>
       return;
     }
 
-    final newAdjustInfo = _adjustPitchTimeInfo.cloneAndAddAdjustDetail(sel.start, delta);
+    final originalStartTime = _adjustPitchTimeInfo.getOriginalDuration(sel.start);
+    final newAdjustInfo = _adjustPitchTimeInfo.cloneAndAddAdjustDetail(originalStartTime, delta);
     _adjustPitchHistory.add(newAdjustInfo);
     _adjustPitchTimeInfo = newAdjustInfo;
     setState(() {});
 
-    _tryUpdatePitchDataList(adjustPitchInfo: _adjustPitchTimeInfo);
+    await _tryUpdatePitchDataList(adjustPitchInfo: _adjustPitchTimeInfo);
+
+    // 2) 若選取的那條被平移了，重新在新陣列裡指向它
+    if (selWillMove && selNewStart != null && selNewEnd != null) {
+      // 以 pitchIndex + start/end 完整匹配，避免誤配
+      final idx = pitchData.indexWhere(
+        (p) => p.pitchIndex == sel.pitchIndex && p.start == selNewStart && p.end == selNewEnd,
+      );
+      if (idx != -1) {
+        setSelectedPitch(pitchData[idx]);
+      } else {
+        // 找不到就先清掉，避免指向舊物件
+        setSelectedPitch(null);
+      }
+    }
   }
 
   Future<void> _playPreviewMusic() async {

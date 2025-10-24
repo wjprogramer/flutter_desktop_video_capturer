@@ -53,9 +53,8 @@ mixin CombineWithLyricsViewMixin<T extends StatefulWidget> on State<T> {
 
   void setPitchDataList(List<PitchData> pitchData) {
     _pushHistory();
-    setState(() {
-      _pitchData = pitchData;
-    });
+    _pitchData = pitchData;
+    setState(() { });
   }
 
   void debugPrintPitchDataList() {
