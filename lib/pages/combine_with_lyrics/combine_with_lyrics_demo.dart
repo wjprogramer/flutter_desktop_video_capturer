@@ -1,9 +1,7 @@
 import 'dart:convert';
 
 import 'package:flutter/material.dart';
-import 'package:flutter_desktop_video_capturer/external/flutter_singer/models/models.dart';
 import 'package:flutter_desktop_video_capturer/helpers/combine_with_lyrics/src/combine_with_lyrics_view_mixin.dart';
-import 'package:flutter_desktop_video_capturer/helpers/combine_with_lyrics/src/models/pitch_data.dart';
 
 const minGap = Duration(milliseconds: 120); // 視情況調整閾值
 
@@ -15,16 +13,6 @@ class CombineWithLyricsDemoPage extends StatefulWidget {
 }
 
 class _CombineWithLyricsDemoPageState extends State<CombineWithLyricsDemoPage> with CombineWithLyricsViewMixin {
-  List<PitchData> get _pitchData => pitchData;
-
-  List<LyricsLine> get _lyricsLines => lyricsLines;
-
-  PitchData? get _selectedPitch => selectedPitch;
-
-  List<List<PitchData>> get _undoStack => undoStack;
-
-  List<List<PitchData>> get _redoStack => redoStack;
-
   @override
   void initState() {
     super.initState();
@@ -33,7 +21,7 @@ class _CombineWithLyricsDemoPageState extends State<CombineWithLyricsDemoPage> w
 
   void debugPrintPitchDataList() {
     print(
-      _pitchData.map((p) {
+      pitchData.map((p) {
         return JsonEncoder().convert({
           'pitch': p.pitchIndex,
           'start_in_ms': p.start.inMilliseconds,
@@ -60,12 +48,12 @@ class _CombineWithLyricsDemoPageState extends State<CombineWithLyricsDemoPage> w
               children: [
                 // Undo / Redo
                 FilledButton.tonalIcon(
-                  onPressed: _undoStack.isEmpty ? null : undo,
+                  onPressed: undoStack.isEmpty ? null : undo,
                   icon: const Icon(Icons.undo),
                   label: const Text('Undo'),
                 ),
                 FilledButton.tonalIcon(
-                  onPressed: _redoStack.isEmpty ? null : redo,
+                  onPressed: redoStack.isEmpty ? null : redo,
                   icon: const Icon(Icons.redo),
                   label: const Text('Redo'),
                 ),
@@ -74,24 +62,24 @@ class _CombineWithLyricsDemoPageState extends State<CombineWithLyricsDemoPage> w
                   icon: const Icon(Icons.code),
                   label: const Text('Print Pitch Data'),
                 ),
-                if (_selectedPitch == null)
+                if (selectedPitch == null)
                   const Text('點一下上方的 pitch bar 以選取並微調')
                 else ...[
-                  Text('選取起點: ${_selectedPitch!.start.inMilliseconds} ms'),
+                  Text('選取起點: ${selectedPitch!.start.inMilliseconds} ms'),
                   FilledButton(
-                    onPressed: () => shiftPitchesFrom(_selectedPitch!.start, const Duration(milliseconds: -10)),
+                    onPressed: () => shiftPitchesFrom(selectedPitch!.start, const Duration(milliseconds: -10)),
                     child: const Text('-10ms'),
                   ),
                   FilledButton(
-                    onPressed: () => shiftPitchesFrom(_selectedPitch!.start, const Duration(milliseconds: -50)),
+                    onPressed: () => shiftPitchesFrom(selectedPitch!.start, const Duration(milliseconds: -50)),
                     child: const Text('-50ms'),
                   ),
                   FilledButton(
-                    onPressed: () => shiftPitchesFrom(_selectedPitch!.start, const Duration(milliseconds: 10)),
+                    onPressed: () => shiftPitchesFrom(selectedPitch!.start, const Duration(milliseconds: 10)),
                     child: const Text('+10ms'),
                   ),
                   FilledButton(
-                    onPressed: () => shiftPitchesFrom(_selectedPitch!.start, const Duration(milliseconds: 50)),
+                    onPressed: () => shiftPitchesFrom(selectedPitch!.start, const Duration(milliseconds: 50)),
                     child: const Text('+50ms'),
                   ),
                 ],
