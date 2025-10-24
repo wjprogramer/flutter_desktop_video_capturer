@@ -308,7 +308,6 @@ mixin DetectorImagesPitchesViewMixin<T extends StatefulWidget> on State<T> {
     final newAdjustStartTime = timeInfo.startTime; //  + _adjustTimeInfo.getDiffDuration(timeInfo.startTime)
     _adjustImageTimeInfo = _adjustImageTimeInfo.cloneAndAddAdjustDetail(newAdjustStartTime, shiftDuration);
 
-    print(1);
     setState(() {});
   }
 

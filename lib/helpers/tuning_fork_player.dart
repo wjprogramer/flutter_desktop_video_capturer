@@ -21,11 +21,15 @@ class TuningForkPlayer {
 
   /// 播放一串音符。`notes` 的 start/end 皆以同一時間軸（相對 0）計。
   /// 若有重疊，後開始者會覆蓋前者（單音器）。
-  Future<void> playSequence(List<PitchData> notes) async {
+  Future<void> playSequence(List<PitchData> notes, {
+    Duration startAt = Duration.zero,
+    Duration? endAt,
+  }) async {
     if (notes.isEmpty) return;
 
     // 事件：note-on / note-off
     final events = <_Event>[];
+
     for (final n in notes) {
       events.add(_Event(time: n.start, type: _EventType.on, pitchIndex: n.pitchIndex));
       events.add(_Event(time: n.end, type: _EventType.off, pitchIndex: n.pitchIndex));
@@ -38,9 +42,67 @@ class TuningForkPlayer {
       return a.type == _EventType.off ? -1 : 1;
     });
 
+    // 找出 startAt 當下應該在鳴的音（單音邏輯：取最後一個 start<=startAt<end）
+    _Event? lastOnBefore;
+    _Event? firstOffAfter;
+
+    for (final n in notes) {
+      if (n.start <= startAt && startAt < n.end) {
+        // 取「開始時間最大」的那個
+        if (lastOnBefore == null || n.start > lastOnBefore.time) {
+          lastOnBefore = _Event(time: n.start, type: _EventType.on, pitchIndex: n.pitchIndex);
+          firstOffAfter = _Event(time: n.end, type: _EventType.off, pitchIndex: n.pitchIndex);
+        }
+      }
+    }
+
+    // 把 startAt 之前的事件捨棄，之後的事件時間改為「相對 startAt」
+    final tail = <_Event>[];
+    for (final e in events) {
+      if (e.time >= startAt && (endAt == null || e.time < endAt)) {
+        tail.add(_Event(
+          time: e.time - startAt,
+          type: e.type,
+          pitchIndex: e.pitchIndex,
+        ));
+      }
+    }
+
+    // 若起點當下本來就該在鳴音，插入一個立即的 on 事件於 t=0，並確保有對應的 off 在隊列內
+    if (lastOnBefore != null) {
+      tail.insert(
+        0,
+        _Event(time: Duration.zero, type: _EventType.on, pitchIndex: lastOnBefore!.pitchIndex),
+      );
+      // 如果對應 off 在 startAt 之後，時間也要平移
+      if (firstOffAfter != null) {
+        final offTime = firstOffAfter!.time - startAt;
+        // 若 tail 內已經有相同音的 off（通常會有），就不用特別加
+        final hasOff = tail.any((e) =>
+        e.type == _EventType.off &&
+            e.time == offTime &&
+            e.pitchIndex == firstOffAfter!.pitchIndex);
+        if (!hasOff) {
+          tail.add(_Event(time: offTime, type: _EventType.off, pitchIndex: firstOffAfter!.pitchIndex));
+        }
+        tail.sort((a, b) {
+          final t = a.time.compareTo(b.time);
+          if (t != 0) return t;
+          if (a.type == b.type) return 0;
+          return a.type == _EventType.off ? -1 : 1;
+        });
+      }
+    }
+
+    if (tail.isEmpty) {
+      // startAt 已超過結尾；什麼都不播
+      return;
+    }
+
     // 初始化基本參數
     await controller.setVolume(defaultVolume);
     await controller.setWaveform(defaultWaveform);
+    await controller.stop();
 
     _stopToken.reset();
     final sw = Stopwatch()..start();
@@ -48,7 +110,7 @@ class TuningForkPlayer {
     // 目前是否有音在播
     bool noteOn = false;
 
-    for (final e in events) {
+    for (final e in tail) {
       // 若被外部 stop
       if (_stopToken.stopped) break;
 

@@ -66,8 +66,6 @@ class _MainFeaturePageState extends State<MainFeaturePage>
 
   late final TuningForkPlayer _tuningForkPlayer;
 
-  bool _isWebInitialized = false;
-
   _PitchesEditorMode _mode = _PitchesEditorMode.byImage;
 
   final TraceableHistory<DetectedPitchImagesAdjustTimeInfo> _adjustPitchHistory =
@@ -96,17 +94,15 @@ class _MainFeaturePageState extends State<MainFeaturePage>
   void dispose() {
     _webController.dispose();
     _tuningController.stop();
+    _tuningForkPlayer.stop();
     super.dispose();
   }
 
   void _initWebView() async {
     final assetsBundle = DefaultAssetBundle.of(context);
-    // load assets/html/oscillator_tuning_fork.html content
     await _webController.initialize();
     final htmlContent = await assetsBundle.loadString('assets/html/oscillator_tuning_fork.html');
     await _webController.loadStringContent(htmlContent);
-
-    _isWebInitialized = true;
   }
 
   void _updateMode(_PitchesEditorMode mode) {
@@ -163,7 +159,7 @@ class _MainFeaturePageState extends State<MainFeaturePage>
   }
 
   // TODO:
-  void _shiftPitchesFrom(Duration start, Duration delta) {
+  Future<void> _shiftPitchesFrom(Duration start, Duration delta) async {
     // 先記住目前選取的 pitch（若它會被平移，記下平移後的時間）
     final sel = selectedPitch;
     final bool selWillMove = sel != null && sel.start >= start;
@@ -176,7 +172,6 @@ class _MainFeaturePageState extends State<MainFeaturePage>
 
     final newAdjustInfo = _adjustPitchTimeInfo.cloneAndAddAdjustDetail(sel.start, delta);
     _adjustPitchHistory.add(newAdjustInfo);
-
     _adjustPitchTimeInfo = newAdjustInfo;
     setState(() {});
 
@@ -200,7 +195,22 @@ class _MainFeaturePageState extends State<MainFeaturePage>
       _PitchesEditorMode.byImage => [
         if (capturedImageFiles.isEmpty) const Text('尚無擷取圖片，請先執行擷取') else ...buildDetectedPitchesImageViews(),
       ],
-      _PitchesEditorMode.byLyrics => [SizedBox(height: 8), ...buildLyricsAndPitchChildren()],
+      _PitchesEditorMode.byLyrics => [
+        SizedBox(height: 8),
+        ...buildLyricsAndPitchChildren(
+          onPlayLine: (line) async {
+            if (_tuningForkPlayer.isPlaying) {
+              await _tuningForkPlayer.stop();
+            } else {
+              await _tuningForkPlayer.playSequence(
+                pitchData,
+                startAt: line.startTime,
+                // endAt: line.endTime
+              );
+            }
+          },
+        ),
+      ],
     };
 
     Widget leftOrMainBodyContent = Column(
@@ -454,8 +464,7 @@ class _MainFeaturePageState extends State<MainFeaturePage>
                   ],
                 ),
               ),
-              Container(margin: const EdgeInsets.only(top: 16), height: 100, child: Webview(_webController,
-              )),
+              Container(margin: const EdgeInsets.only(top: 16), height: 100, child: Webview(_webController)),
               ElevatedButton(
                 onPressed: () {
                   if (_tuningForkPlayer.isPlaying) {

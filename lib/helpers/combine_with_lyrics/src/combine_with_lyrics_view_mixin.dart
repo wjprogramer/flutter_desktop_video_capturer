@@ -14,6 +14,7 @@ import 'package:flutter_desktop_video_capturer/helpers/traceable_history.dart';
 enum _Mode {
   /// 主功能: 整合功能「擷取影片、辨識圖片、結合歌詞」，因此需要另外另外處理 pitch data 的調整
   mainFeature,
+
   /// 單一功能: 根據圖片辨識的結果，進行調整，不包含「擷取影片、圖片辨識」的流程
   singleFeature,
 }
@@ -42,10 +43,7 @@ mixin CombineWithLyricsViewMixin<T extends StatefulWidget> on State<T> {
 
   bool canRedo() => _history.canRedo;
 
-  void initCombineWithLyricsData({
-    bool shouldLoadPitchData = true,
-    bool isFromMainFeature = false,
-  }) {
+  void initCombineWithLyricsData({bool shouldLoadPitchData = true, bool isFromMainFeature = false}) {
     _mode = isFromMainFeature ? _Mode.mainFeature : _Mode.singleFeature;
     if (shouldLoadPitchData) {
       _pitchData = demoDryFlowerPitchData.map((e) => PitchData.fromJson(e)).toList();
@@ -133,7 +131,7 @@ mixin CombineWithLyricsViewMixin<T extends StatefulWidget> on State<T> {
     });
   }
 
-  List<Widget> buildLyricsAndPitchChildren() {
+  List<Widget> buildLyricsAndPitchChildren({ValueChanged<LyricsLine>? onPlayLine}) {
     final results = <Widget>[];
 
     // Helper: 判斷 pitch 是否屬於某 line
@@ -203,7 +201,7 @@ mixin CombineWithLyricsViewMixin<T extends StatefulWidget> on State<T> {
                   crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: [
                     Text(line.startTime.toString(), style: TextStyle(color: Colors.orange)),
-                    LyricsLineView(line: line),
+                    LyricsLineView(line: line, onPlay: onPlayLine == null ? null : () => onPlayLine(line)),
                     if (pitches.isNotEmpty)
                       _PitchView(pitches: pitches, line: line, selected: _selectedPitch, onSelect: setSelectedPitch),
                   ],
