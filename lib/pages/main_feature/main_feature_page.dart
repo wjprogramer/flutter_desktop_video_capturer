@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_desktop_video_capturer/helpers/detector_images_pitches/src/detector_images_pitches_mixin.dart';
 import 'package:flutter_desktop_video_capturer/helpers/video_capturer/src/capture_segment.dart';
 import 'package:flutter_desktop_video_capturer/helpers/video_capturer/src/models.dart';
 import 'package:flutter_desktop_video_capturer/helpers/video_capturer/src/video_capturer_view_mixin.dart';
@@ -21,7 +22,7 @@ class MainFeaturePage extends StatefulWidget {
   State<MainFeaturePage> createState() => _MainFeaturePageState();
 }
 
-class _MainFeaturePageState extends State<MainFeaturePage> with VideoCapturerViewMixin {
+class _MainFeaturePageState extends State<MainFeaturePage> with VideoCapturerViewMixin, DetectorImagesPitchesViewMixin {
   List<CaptureRule> get _rules => videoCapturer.rules;
 
   List<Duration> get _stopPoints => videoCapturer.stopPoints;
@@ -52,7 +53,29 @@ class _MainFeaturePageState extends State<MainFeaturePage> with VideoCapturerVie
                   if (videoCapturer.videoPath != null) Text('影片: ${videoCapturer.videoPath}'),
                   const SizedBox(height: 20),
                   const SizedBox(height: 20),
-                  ElevatedButton(onPressed: tryRunCapturer, child: const Text('開始擷取')),
+                  ElevatedButton(
+                    onPressed: () async {
+                      final captureResultMeta = await tryRunCapturer();
+
+                      setState(() {
+                        setCaptureMeta(captureResultMeta);
+                      });
+
+                      final metaFile = await getCapturerMetaFileIfExists();
+                      if (metaFile == null) {
+                        return;
+                      }
+
+                      final captureOutDir = await getCapturedImagesOutputDirectoryIfExists();
+                      if (captureOutDir == null) return;
+
+                      setState(() {
+                        setCapturedImageFiles(getCapturedImageFiles(captureOutDir.path));
+                        setCaptureMeta(captureResultMeta);
+                      });
+                    },
+                    child: const Text('開始擷取'),
+                  ),
                   videoController == null
                       ? const Text('請先選擇影片')
                       : VideoCapturerPlayer(videoController: videoController, videoCapturer: videoCapturer),
@@ -275,6 +298,17 @@ class _MainFeaturePageState extends State<MainFeaturePage> with VideoCapturerVie
                     ),
                     Divider(),
                     Text('預覽擷取圖片'),
+                    if (previewBytes.isEmpty)
+                      const Text('尚無擷取圖片，請先執行擷取')
+                    else
+                      // Wrap(
+                      //   spacing: 8,
+                      //   runSpacing: 8,
+                      //   children: previewBytes.entries
+                      //       .map((b) => Image.memory(b.value, width: 120, height: 90, fit: BoxFit.cover))
+                      //       .toList(),
+                      // ),
+                      ...buildDetectedPitchesImageViews(),
                   ],
                 ],
               ),

@@ -17,6 +17,7 @@ class VideoCapturer {
 
   String? get videoPath => _videoPath;
 
+  //Rect.fromLTWH(0, 0, 2160, 1440),
   Rect? _rectVideoPx;
 
   /// 以「影片像素」為座標系來存
@@ -201,22 +202,30 @@ class VideoCapturer {
   /// 嘗試開始執行擷取
   void tryExecute() {}
 
-  Future<void> runCapture({
+  /// ## 注意路徑
+  ///
+  /// 如果有改到路徑相關要特別注意。
+  ///
+  /// `meta.json` 的路徑有變動時，注意要修改 [getMetaFilePath]
+  /// 目前的邏輯是 [outputDir]/captures/meta.json
+  ///
+  /// `captures` 資料夾的路徑有變動時，注意要修改 [getCaptureOutputDir]
+  Future<CaptureMeta> runCapture({
     required String inputPath,
     required String outputDir,
     required Duration start, // 保留參數相容，但實際改用 rules
     required Duration interval, // 保留參數相容
-    required Rect rect,
     required Duration videoDuration,
   }) async {
-    if (_videoPath == null || _rules.isEmpty || _rectVideoPx == null) return;
-    final newRules = _rules.map((e) => e.copyWith(rect: rect)).toList();
+    if (_videoPath == null || _rules.isEmpty || _rectVideoPx == null) {
+      throw Exception('Video path, rules, or rect is not set.');
+    }
+    final newRules = _rules.map((e) => e.copyWith(rect: _rectVideoPx!)).toList();
     var imageIndex = 0;
 
     final segList = buildSegments(videoDuration);
     if (segList.isEmpty) {
-      print('沒有有效的擷取區段，請至少加入一個規則（開始點）');
-      return;
+      throw Exception('沒有有效的擷取區段，請至少加入一個規則（開始點）');
     }
 
     // 建立輸出資料夾
@@ -228,22 +237,14 @@ class VideoCapturer {
       projectDir.createSync(recursive: true);
     }
 
-    final meta = CaptureMetaFile(
+    final meta = CaptureMeta.from(
+      rectVideoPx: _rectVideoPx!,
       videoPath: _videoPath,
-      x: _rectVideoPx!.left.round(),
-      y: _rectVideoPx!.top.round(),
-      w: _rectVideoPx!.width.round(),
-      h: _rectVideoPx!.height.round(),
-      rules: _rules,
+      rules: newRules,
       stopPoints: _stopPoints,
-      segments: [],
     );
 
     print('共 ${segList.length} 段要擷取');
-
-    final outputPattern = '${dir.path}${Platform.pathSeparator}frame_%04d.png';
-
-    int segmentIndex = 0;
 
     for (int i = 0; i < segList.length; i++) {
       final seg = segList[i];
@@ -256,35 +257,35 @@ class VideoCapturer {
       final w = r.rect.width.round();
       final h = r.rect.height.round();
 
-      Future<void> forceCaptureSegStart() async {
-        // 先強制擷取「段落起點」的一張
-        final startStillPath = p.join(segDir.path, 'frame_start.png');
-        final argsStart = [
-          '-hide_banner',
-          '-loglevel',
-          'info',
-          '-ss',
-          (r.start.inMilliseconds / 1000).toStringAsFixed(3),
-          '-i',
-          inputPath,
-          '-vf',
-          'crop=$w:$h:$x:$y',
-          '-frames:v',
-          '1',
-          startStillPath,
-        ];
-        print('執行(起點單張): ffmpeg ${argsStart.join(' ')}');
-        try {
-          final pStart = await Process.start('ffmpeg', argsStart);
-          pStart.stdout.transform(SystemEncoding().decoder).listen((d) => print('stdout: $d'));
-          pStart.stderr.transform(SystemEncoding().decoder).listen((d) => print('stderr: $d'));
-          final codeStart = await pStart.exitCode;
-          print('起點單張完成 seg_$i，exit=$codeStart');
-        } catch (e) {
-          print('起點單張失敗 seg_$i: $e');
-        }
-      }
-
+      // Future<void> forceCaptureSegStart() async {
+      //   // 先強制擷取「段落起點」的一張
+      //   final startStillPath = p.join(segDir.path, 'frame_0000.png');
+      //   final argsStart = [
+      //     '-hide_banner',
+      //     '-loglevel',
+      //     'info',
+      //     '-ss',
+      //     (r.start.inMilliseconds / 1000).toStringAsFixed(3),
+      //     '-i',
+      //     inputPath,
+      //     '-vf',
+      //     'crop=$w:$h:$x:$y',
+      //     '-frames:v',
+      //     '1',
+      //     startStillPath,
+      //   ];
+      //   print('執行(起點單張): ffmpeg ${argsStart.join(' ')}');
+      //   try {
+      //     final pStart = await Process.start('ffmpeg', argsStart);
+      //     pStart.stdout.transform(SystemEncoding().decoder).listen((d) => print('stdout: $d'));
+      //     pStart.stderr.transform(SystemEncoding().decoder).listen((d) => print('stderr: $d'));
+      //     final codeStart = await pStart.exitCode;
+      //     print('起點單張完成 seg_$i，exit=$codeStart');
+      //   } catch (e) {
+      //     print('起點單張失敗 seg_$i: $e');
+      //   }
+      // }
+      //
       // await forceCaptureSegStart();
 
       // 計算 fps (interval 毫秒 -> 1 / 秒數)
@@ -304,6 +305,7 @@ class VideoCapturer {
         '-vf',
         'crop=$w:$h:$x:$y,fps=$fps',
         // %04d => 避免後面排序有問題
+        // ffmpeg 預設從 1 開始編號，所以前面強制擷取的起點單張是 frame_0000.png
         p.join(segDir.path, 'frame_%04d.png'),
       ];
 
@@ -391,6 +393,20 @@ class VideoCapturer {
     await metaFile.writeAsString(const JsonEncoder.withIndent(' ').convert(meta.toJson()));
     print('Meta saved: ${metaFile.path}');
     print('擷取完成，輸出到 ${projectDir.path}');
+    return meta;
+  }
+
+  /// 詳細請參考 [runCapture]
+  Future<String> getMetaFilePath(String outputDir) async {
+    final projectDir = Directory(p.join(outputDir, 'captures'));
+    final metaFilePath = p.join(projectDir.path, 'meta.json');
+    return metaFilePath;
+  }
+
+  /// 詳細請參考 [runCapture]
+  Future<String> getCaptureOutputDir(String outputDir) async {
+    final projectDir = Directory(p.join(outputDir, 'captures'));
+    return projectDir.path;
   }
 
   Future<List<String>> _buildFfmpegArgs({

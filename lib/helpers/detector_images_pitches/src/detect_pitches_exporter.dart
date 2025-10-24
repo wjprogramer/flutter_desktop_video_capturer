@@ -11,7 +11,7 @@ class DetectPitchesExporter {
 
   final ImagePitchDetectorResult previousStepResult;
 
-  final CaptureMetaFile metaFile;
+  final CaptureMeta metaFile;
 
   final List<File> inputFiles;
 

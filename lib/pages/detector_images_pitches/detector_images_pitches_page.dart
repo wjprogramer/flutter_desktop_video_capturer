@@ -3,16 +3,14 @@ import 'dart:io';
 
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter_desktop_video_capturer/helpers/detector_images_pitches/src/detect_pitches_exporter.dart';
 import 'package:flutter_desktop_video_capturer/helpers/detector_images_pitches/src/detector_images_pitches_mixin.dart';
 import 'package:flutter_desktop_video_capturer/helpers/detector_images_pitches/src/detector_images_pitches_provider.dart';
 import 'package:flutter_desktop_video_capturer/helpers/detector_images_pitches/src/models/models.dart';
 import 'package:flutter_desktop_video_capturer/models/capture_meta_file.dart';
-import 'package:flutter_desktop_video_capturer/widgets/detector_images_pitches/image_item.dart';
 import 'package:image/image.dart' as img;
 import 'package:path/path.dart' as p;
-import 'package:provider/provider.dart';
 
-import '../../helpers/detector_images_pitches/src/detect_pitches_exporter.dart';
 import 'core/detector.dart';
 
 class DetectorImagesPitchesPage extends StatefulWidget {
@@ -31,8 +29,11 @@ class _DetectorImagesPitchesPageState extends State<DetectorImagesPitchesPage> w
   String outputFile = '';
   bool running = false;
   String log = '';
-  List<File> _inputFiles = [];
-  CaptureMetaFile? _metaFile;
+
+  /// 已擷取的圖片檔案列表
+  List<File> get _inputFiles => capturedImageFiles;
+
+  CaptureMeta? get _metaFile => captureMeta;
 
   void _append(String s) => setState(() => log += '$s\n');
 
@@ -41,24 +42,24 @@ class _DetectorImagesPitchesPageState extends State<DetectorImagesPitchesPage> w
       final inputDir = await FilePicker.platform.getDirectoryPath();
       if (inputDir == null) return;
 
-      _inputFiles = _getImageFiles(inputDir);
+      setCapturedImageFiles(getCapturedImageFiles(inputDir));
+      setCaptureMeta(await _getMeta(inputDir));
       _inputDir = inputDir;
-      _metaFile = await _getMeta(inputDir);
     } catch (e, s) {
       print(e);
       print(s);
       _inputDir = null;
-      _inputFiles = [];
-      _metaFile = null;
+      setCapturedImageFiles([]);
+      setCaptureMeta(null);
     } finally {
       setState(() {});
     }
   }
 
-  Future<CaptureMetaFile> _getMeta(String inputDir) async {
+  Future<CaptureMeta> _getMeta(String inputDir) async {
     final file = File(p.join(inputDir, 'meta.json'));
     final content = await file.readAsString();
-    return CaptureMetaFile.fromJson(json.decode(content));
+    return CaptureMeta.fromJson(json.decode(content));
   }
 
   Future<void> _pickSaveJson() async {
@@ -78,7 +79,7 @@ class _DetectorImagesPitchesPageState extends State<DetectorImagesPitchesPage> w
     }
 
     setState(() => running = true);
-    final files = _getImageFiles(_inputDir!);
+    final files = getCapturedImageFiles(_inputDir!);
 
     final results = <DetectedPitchImageResult>[];
     for (final f in files) {
@@ -99,18 +100,6 @@ class _DetectorImagesPitchesPageState extends State<DetectorImagesPitchesPage> w
 
     _provider.setResult(ImagePitchDetectorResult(images: results));
     setState(() => running = false);
-  }
-
-  List<File> _getImageFiles(String inputDir) {
-    final dir = Directory(inputDir);
-    final files =
-        dir
-            .listSync()
-            .whereType<File>()
-            .where((f) => ['.png', '.jpg', '.jpeg'].contains(p.extension(f.path).toLowerCase()))
-            .toList()
-          ..sort((a, b) => a.path.compareTo(b.path));
-    return files;
   }
 
   Future<void> _outputToFile() async {
@@ -135,114 +124,6 @@ class _DetectorImagesPitchesPageState extends State<DetectorImagesPitchesPage> w
     // await File(outputFile).writeAsString(const JsonEncoder.withIndent('  ').convert(jsonObjList));
     await File(outputFile).writeAsString(const JsonEncoder.withIndent('  ').convert(exporter.exportToJson()));
     _append('完成，已輸出到: $outputFile');
-  }
-
-  List<Widget> _buildItems() {
-    final results = <Widget>[];
-    int? segmentIndex;
-
-    for (var i = 0; i < _inputFiles.length; i++) {
-      final f = _inputFiles[i];
-      final timeInfo = _metaFile?.getTimeInfoByIndex(i);
-      final currentSegmentIndex = _metaFile?.getSegmentIndex(i);
-
-      if (currentSegmentIndex != segmentIndex) {
-        results.add(
-          Padding(
-            padding: const EdgeInsets.symmetric(vertical: 8),
-            child: Text(
-              'Segment ${currentSegmentIndex ?? '?'}',
-              style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
-            ),
-          ),
-        );
-        segmentIndex = currentSegmentIndex;
-      }
-
-      results.add(Text(i.toString()));
-
-      if (timeInfo != null) {
-        results.add(Text(timeInfo.startTime.toString()));
-      }
-
-      results.add(
-        Padding(
-          padding: const EdgeInsets.symmetric(vertical: 4),
-          child: ImageItem(
-            provider: _provider,
-            image: f,
-            preview: isPreviewImagesDetectResult,
-            tools: ChangeNotifierProvider.value(
-              value: _provider,
-              child: Builder(
-                builder: (context) {
-                  context.watch<DetectorImagesPitchesProvider>();
-                  return SingleChildScrollView(
-                    scrollDirection: Axis.horizontal,
-                    reverse: true,
-                    child: IntrinsicHeight(
-                      child: Row(
-                        mainAxisAlignment: MainAxisAlignment.end,
-                        children: [
-                          IconButton(
-                            onPressed: () => onSetGridLines(f),
-                            tooltip: '使用此圖片的 Grid Lines',
-                            icon: Icon(Icons.menu, color: Colors.white),
-                          ),
-                          SizedBox(width: 8),
-                          IconButton(
-                            onPressed: () {
-                              final result = _provider.getImageResult(f);
-                              if (result == null) return;
-
-                              print(const JsonEncoder.withIndent('  ').convert(result.toJson()));
-                            },
-                            tooltip: '除錯用 (Console)',
-                            icon: Icon(Icons.bug_report_outlined, color: Colors.white),
-                          ),
-                          SizedBox(width: 8),
-                          VerticalDivider(),
-                          SizedBox(width: 8),
-                          IconButton(
-                            onPressed: _provider.getSelectedBarIndexOfImage(f) == null
-                                ? null
-                                : () {
-                                    _provider.deleteSelectedBarOfImage(f);
-                                  },
-                            tooltip: '刪除選取的藍條',
-                            icon: Icon(
-                              Icons.delete,
-                              color: _provider.getSelectedBarIndexOfImage(f) == null ? Colors.grey : Colors.white,
-                            ),
-                          ),
-                          SizedBox(width: 8),
-                          IconButton(
-                            onPressed: _provider.getSelectedBarIndexOfImage(f) == null
-                                ? null
-                                : () {
-                                    final sel = _provider.getSelectedBarIndexOfImage(f);
-                                    if (sel == null) return;
-                                    _provider.copyAndPasteBarOfImage(f, sel);
-                                  },
-                            tooltip: '複製並貼上選取的藍條',
-                            icon: Icon(
-                              Icons.copy,
-                              color: _provider.getSelectedBarIndexOfImage(f) == null ? Colors.grey : Colors.white,
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                  );
-                },
-              ),
-            ),
-          ),
-        ),
-      );
-    }
-
-    return results;
   }
 
   @override
@@ -330,7 +211,7 @@ class _DetectorImagesPitchesPageState extends State<DetectorImagesPitchesPage> w
                     child: SingleChildScrollView(child: Text(log)),
                   ),
                 ),
-                ..._buildItems(),
+                ...buildDetectedPitchesImageViews(),
               ],
             ),
           ),
@@ -366,5 +247,3 @@ class _DetectorImagesPitchesPageState extends State<DetectorImagesPitchesPage> w
     );
   }
 }
-
-

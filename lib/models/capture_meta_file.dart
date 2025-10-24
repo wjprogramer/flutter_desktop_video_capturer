@@ -1,9 +1,10 @@
+import 'dart:ui';
+
 import 'package:flutter_desktop_video_capturer/helpers/video_capturer/video_capturer.dart';
-import 'package:flutter_desktop_video_capturer/pages/video_capturer/page.dart';
 
 /// 擷取影片的 metadata 檔案
-class CaptureMetaFile {
-  CaptureMetaFile({
+class CaptureMeta {
+  CaptureMeta({
     required this.videoPath,
     required this.x,
     required this.y,
@@ -23,8 +24,26 @@ class CaptureMetaFile {
   final List<Duration> stopPoints;
   final List<CapturedSegment> segments;
 
-  factory CaptureMetaFile.fromJson(Map<String, dynamic> json) {
-    return CaptureMetaFile(
+  factory CaptureMeta.from({
+    required Rect rectVideoPx,
+    required List<Duration> stopPoints,
+    String? videoPath,
+    List<CaptureRule> rules = const [],
+  }) {
+    return CaptureMeta(
+      videoPath: videoPath,
+      x: rectVideoPx.left.round(),
+      y: rectVideoPx.top.round(),
+      w: rectVideoPx.width.round(),
+      h: rectVideoPx.height.round(),
+      stopPoints: stopPoints,
+      segments: [],
+      rules: rules,
+    );
+  }
+
+  factory CaptureMeta.fromJson(Map<String, dynamic> json) {
+    return CaptureMeta(
       videoPath: json['video'],
       x: json['rect']['x'],
       y: json['rect']['y'],

@@ -4,6 +4,7 @@ import 'dart:typed_data';
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_desktop_video_capturer/helpers/video_capturer/src/video_capturer.dart';
+import 'package:flutter_desktop_video_capturer/models/capture_meta_file.dart';
 import 'package:flutter_desktop_video_capturer/third_party/uuid/uuid.dart';
 import 'package:flutter_desktop_video_capturer/utilities/file_structure_utility.dart';
 import 'package:flutter_desktop_video_capturer/utilities/formatter.dart';
@@ -20,6 +21,8 @@ mixin VideoCapturerViewMixin<T extends StatefulWidget> on State<T> {
   VideoPlayerController? videoController;
 
   Map<Duration, Uint8List> _previewBytes = {};
+
+  Map<Duration, Uint8List> get previewBytes => _previewBytes;
 
   String? get _videoPath => videoCapturer.videoPath;
 
@@ -181,37 +184,48 @@ mixin VideoCapturerViewMixin<T extends StatefulWidget> on State<T> {
     return videoCapturer.indexOfPrevCapture(times, pos);
   }
 
-  Future<void> tryRunCapturer() async {
+  Future<CaptureMeta?> tryRunCapturer() async {
     if (_videoPath == null) {
       showToast('請先選擇影片');
-      return;
+      return null;
     }
 
     if (_rectVideoPx == null) {
       showToast('請先選取擷取區域');
-      return;
+      return null;
     }
 
     final videoName = p.basenameWithoutExtension(_videoPath!);
     final outputPath = (await getCapturerOutputDir()).path;
 
     if (videoController == null) {
-      return;
+      return null;
     }
 
-    await videoCapturer.runCapture(
+    return await videoCapturer.runCapture(
       inputPath: _videoPath!,
       outputDir: outputPath,
       start: Duration.zero,
       interval: const Duration(seconds: 1),
-      rect: _rectVideoPx!,
-      //Rect.fromLTWH(0, 0, 2160, 1440),
       videoDuration: videoController!.value.duration,
     );
   }
 
   Future<Directory> getCapturerOutputDir() async {
     return FileStructureUtility.generateTempVideoCaptureDir(taskId);
+  }
+
+  Future<File?> getCapturerMetaFileIfExists() async {
+    final outputDir = await getCapturerOutputDir();
+    final metaPath = await videoCapturer.getMetaFilePath(outputDir.path);
+    final metaFile = File(metaPath);
+    return metaFile.existsSync() ? metaFile : null;
+  }
+
+  Future<Directory?> getCapturedImagesOutputDirectoryIfExists() async {
+    final outputDir = await getCapturerOutputDir();
+    final capturesOutputDir = Directory(await videoCapturer.getCaptureOutputDir(outputDir.path));
+    return capturesOutputDir.existsSync() ? capturesOutputDir : null;
   }
 
   /// 用最近開始點推算間隔
