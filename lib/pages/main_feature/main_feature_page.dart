@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_desktop_video_capturer/helpers/combine_with_lyrics/src/combine_with_lyrics_view_mixin.dart';
 import 'package:flutter_desktop_video_capturer/helpers/detector_images_pitches/src/detector_images_pitches_mixin.dart';
@@ -56,6 +57,12 @@ class _MainFeaturePageState extends State<MainFeaturePage>
     super.initState();
     initVideoCapturer();
     initCombineWithLyricsData();
+
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (kDebugMode) {
+        pickVideoForCapturer(debugSetFilePath: true);
+      }
+    });
   }
 
   void _updateMode(_PitchesEditorMode mode) {
@@ -118,24 +125,6 @@ class _MainFeaturePageState extends State<MainFeaturePage>
                           scrollDirection: Axis.horizontal,
                           child: Row(
                             children: [
-                              // 快速設定預設 interval
-                              const Text('新規則間隔(ms): '),
-                              SizedBox(
-                                width: 90,
-                                child: TextField(
-                                  decoration: const InputDecoration(isDense: true, border: OutlineInputBorder()),
-                                  keyboardType: TextInputType.number,
-                                  controller: TextEditingController(text: videoCapturer.defaultIntervalMs.toString()),
-                                  onSubmitted: (v) {
-                                    final ms = int.tryParse(v.trim());
-                                    if (ms == null || ms <= 0) {
-                                      return;
-                                    }
-                                    videoCapturer.setDefaultIntervalMs(ms);
-                                    setState(() {});
-                                  },
-                                ),
-                              ),
                               const SizedBox(width: 8),
                               ElevatedButton.icon(
                                 onPressed: addRuleAtCurrent,
@@ -183,49 +172,6 @@ class _MainFeaturePageState extends State<MainFeaturePage>
                   },
                 ),
 
-                Text('個人常用設定'),
-                Wrap(
-                  spacing: 8,
-                  runSpacing: 8,
-                  children: [
-                    ElevatedButton(
-                      onPressed: () {
-                        videoCapturer.setRectVideoPx(Rect.fromLTWH(0, 155, 1920, 260));
-                        // dragStartVideoPx;
-                        setState(() {});
-                      },
-                      child: Text('設定擷取範圍'),
-                    ),
-                    // 微調時間
-                    ...[-1, 1]
-                        .map(
-                          (sign) => [1000, 500, 300, 100, 50, 10, 1].map(
-                            (ms) => ElevatedButton(
-                              onPressed: () {
-                                var start = videoController.value.position;
-                                start += Duration(milliseconds: sign * ms);
-                                videoController.seekTo(start);
-                                setState(() {});
-                              },
-                              child: Text('${sign < 0 ? '-' : '+'}$ms ms'),
-                            ),
-                          ),
-                        )
-                        .expand((e) => e),
-                  ],
-                ),
-                Text('Debug 專用 (For 乾燥花)'),
-                Wrap(
-                  children: [
-                    ElevatedButton(
-                      onPressed: () {
-                        videoCapturer.addRulesAndStopPointsForDebug();
-                        setState(() {});
-                      },
-                      child: Text('設定擷取規則和停止點'),
-                    ),
-                  ],
-                ),
                 Divider(),
                 Text('辨識圖片相關'),
                 Wrap(
@@ -363,7 +309,7 @@ class _MainFeaturePageState extends State<MainFeaturePage>
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: const Text('Video Frame Extractor'), actions: []),
+      appBar: AppBar(title: const Text('主要功能'), actions: []),
       body: _buildBody(context),
     );
   }

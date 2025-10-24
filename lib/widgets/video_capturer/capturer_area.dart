@@ -26,9 +26,27 @@ class CapturerSettingsArea extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
+          // 快速設定預設 interval
+          Row(
+            children: [
+              const Text('新規則間隔(ms): '),
+              const SizedBox(width: 12),
+              SizedBox(
+                width: 90,
+                child: TextField(
+                  decoration: const InputDecoration(isDense: true, border: OutlineInputBorder()),
+                  keyboardType: TextInputType.number,
+                  controller: TextEditingController(text: videoCapturer.defaultIntervalMs.toString()),
+                  onSubmitted: capturerViewMixin.onDefaultIntervalTextFieldChanged,
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 12),
           // 規則調整清單（可調整每個 interval / 刪除）
           const Text('擷取規則'),
           const SizedBox(height: 8),
+          if (videoCapturer.rules.isEmpty) const Text('目前尚無擷取規則，請先新增規則。', style: TextStyle(color: Colors.grey)),
           ListView.builder(
             itemCount: videoCapturer.rules.length,
             shrinkWrap: true,
@@ -80,6 +98,7 @@ class CapturerSettingsArea extends StatelessWidget {
           const SizedBox(height: 8),
           const Text('停止點'),
           const SizedBox(height: 8),
+          if (videoCapturer.stopPoints.isEmpty) const Text('目前尚無停止點。', style: TextStyle(color: Colors.grey)),
           ListView.builder(
             itemCount: videoCapturer.stopPoints.length,
             shrinkWrap: true,
@@ -94,6 +113,45 @@ class CapturerSettingsArea extends StatelessWidget {
               );
             },
           ),
+          const SizedBox(height: 12),
+          IntrinsicHeight(
+            child: Wrap(
+              spacing: 20,
+              runSpacing: 12,
+              children: [
+                Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const Text('個人常用設定'),
+                    const SizedBox(height: 8),
+                    Wrap(
+                      spacing: 8,
+                      runSpacing: 8,
+                      children: [
+                        ElevatedButton(onPressed: capturerViewMixin.debugUpdateRectVideoPx, child: Text('設定擷取範圍')),
+                      ],
+                    ),
+                  ],
+                ),
+                Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text('Debug 專用 (For 乾燥花)'),
+                    const SizedBox(height: 8),
+                    Wrap(
+                      children: [
+                        ElevatedButton(
+                          onPressed: capturerViewMixin.addRulesAndStopPointsForDebug,
+                          child: Text('設定擷取規則和停止點'),
+                        ),
+                      ],
+                    ),
+                  ],
+                ),
+              ],
+            ),
+          ),
+          SizedBox(height: 30),
         ],
       ),
     );

@@ -1,7 +1,7 @@
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_desktop_video_capturer/helpers/video_capturer/src/models.dart';
 import 'package:flutter_desktop_video_capturer/helpers/video_capturer/src/video_capturer_view_mixin.dart';
-import 'package:flutter_desktop_video_capturer/utilities/formatter.dart';
 import 'package:flutter_desktop_video_capturer/widgets/video_capturer/capturer_area.dart';
 import 'package:flutter_desktop_video_capturer/widgets/video_capturer/pick_video_area.dart';
 import 'package:flutter_desktop_video_capturer/widgets/video_capturer/pick_video_hint.dart';
@@ -16,16 +16,16 @@ class CapturerPage extends StatefulWidget {
 }
 
 class _CapturerPageState extends State<CapturerPage> with VideoCapturerViewMixin {
-  List<CaptureRule> get _rules => videoCapturer.rules;
-
-  List<Duration> get _stopPoints => videoCapturer.stopPoints;
-
-  int get _defaultIntervalMs => videoCapturer.defaultIntervalMs;
-
   @override
   void initState() {
     super.initState();
     initVideoCapturer();
+
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (kDebugMode) {
+        pickVideoForCapturer(debugSetFilePath: true);
+      }
+    });
   }
 
   Widget _buildBody(BuildContext context) {
@@ -59,24 +59,6 @@ class _CapturerPageState extends State<CapturerPage> with VideoCapturerViewMixin
                           scrollDirection: Axis.horizontal,
                           child: Row(
                             children: [
-                              // 快速設定預設 interval
-                              const Text('新規則間隔(ms): '),
-                              SizedBox(
-                                width: 90,
-                                child: TextField(
-                                  decoration: const InputDecoration(isDense: true, border: OutlineInputBorder()),
-                                  keyboardType: TextInputType.number,
-                                  controller: TextEditingController(text: _defaultIntervalMs.toString()),
-                                  onSubmitted: (v) {
-                                    final ms = int.tryParse(v.trim());
-                                    if (ms == null || ms <= 0) {
-                                      return;
-                                    }
-                                    videoCapturer.setDefaultIntervalMs(ms);
-                                    setState(() {});
-                                  },
-                                ),
-                              ),
                               const SizedBox(width: 8),
                               ElevatedButton.icon(
                                 onPressed: addRuleAtCurrent,
@@ -123,49 +105,7 @@ class _CapturerPageState extends State<CapturerPage> with VideoCapturerViewMixin
                     );
                   },
                 ),
-                Text('個人常用設定'),
-                Wrap(
-                  spacing: 8,
-                  runSpacing: 8,
-                  children: [
-                    ElevatedButton(
-                      onPressed: () {
-                        videoCapturer.setRectVideoPx(Rect.fromLTWH(0, 155, 1920, 260));
-                        // dragStartVideoPx;
-                        setState(() {});
-                      },
-                      child: Text('設定擷取範圍'),
-                    ),
-                    // 微調時間
-                    ...[-1, 1]
-                        .map(
-                          (sign) => [1000, 500, 300, 100, 50, 10, 1].map(
-                            (ms) => ElevatedButton(
-                              onPressed: () {
-                                var start = videoController.value.position;
-                                start += Duration(milliseconds: sign * ms);
-                                videoController.seekTo(start);
-                                setState(() {});
-                              },
-                              child: Text('${sign < 0 ? '-' : '+'}$ms ms'),
-                            ),
-                          ),
-                        )
-                        .expand((e) => e),
-                  ],
-                ),
-                Text('Debug 專用 (For 乾燥花)'),
-                Wrap(
-                  children: [
-                    ElevatedButton(
-                      onPressed: () {
-                        videoCapturer.addRulesAndStopPointsForDebug();
-                        setState(() {});
-                      },
-                      child: Text('設定擷取規則和停止點'),
-                    ),
-                  ],
-                ),
+
                 Divider(),
                 Text('預覽擷取圖片'),
               ],

@@ -33,15 +33,21 @@ mixin VideoCapturerViewMixin<T extends StatefulWidget> on State<T> {
     videoCapturer = VideoCapturer();
   }
 
-  Future<void> pickVideoForCapturer() async {
-    final result = await FilePicker.platform.pickFiles(type: FileType.video);
-    if (result == null || result.files.single.path == null) {
-      return;
+  Future<void> pickVideoForCapturer({bool debugSetFilePath = false}) async {
+    final String filePath;
+
+    if (debugSetFilePath) {
+      filePath = 'C:\\Users\\weeih\\Videos\\JoySound\\ドライフラワー.mkv';
+    } else {
+      final result = await FilePicker.platform.pickFiles(type: FileType.video);
+      if (result == null || result.files.single.path == null) {
+        return;
+      }
+      filePath = result.files.single.path!;
     }
 
     videoController?.dispose();
 
-    final filePath = result.files.single.path!;
     final c = VideoPlayerController.file(File(filePath));
     videoController = c;
     await c.initialize();
@@ -262,6 +268,26 @@ mixin VideoCapturerViewMixin<T extends StatefulWidget> on State<T> {
         videoCapturer.rules[i] = r.copyWith(interval: Duration(milliseconds: ms));
       });
     }
+  }
+
+  void onDefaultIntervalTextFieldChanged(String v) {
+    final ms = int.tryParse(v.trim());
+    if (ms == null || ms <= 0) {
+      return;
+    }
+    videoCapturer.setDefaultIntervalMs(ms);
+    setState(() {});
+  }
+
+  void debugUpdateRectVideoPx() {
+    videoCapturer.setRectVideoPx(Rect.fromLTWH(0, 155, 1920, 260));
+    // dragStartVideoPx;
+    setState(() {});
+  }
+
+  void addRulesAndStopPointsForDebug() {
+    videoCapturer.addRulesAndStopPointsForDebug();
+    setState(() {});
   }
 
   // void reloadPreviewImages() {

@@ -113,6 +113,38 @@ class _VideoProgressAndRulesPreviewSliderState extends State<VideoProgressAndRul
             ),
           ),
         ),
+        SizedBox(height: 16),
+        // 微調時間
+        ...[-1, 1].map((sign) {
+          var options = [1000, 500, 300, 100, 50, 10, 1];
+          if (sign > 0) {
+            options = options.reversed.toList();
+          }
+
+          return Padding(
+            padding: const EdgeInsets.only(bottom: 16),
+            child: Row(
+              children: [
+                Padding(
+                  padding: const EdgeInsets.only(right: 8),
+                  child: SizedBox.square(dimension: 20, child: Text(sign < 0 ? '－' : '＋')),
+                ),
+                SegmentedButton(
+                  segments: [...options.map((ms) => ButtonSegment(value: ms, label: Text('$ms')))],
+                  selected: {},
+                  onSelectionChanged: (v) {
+                    var start = videoController.value.position;
+                    start += Duration(milliseconds: (sign * v.first).toInt());
+                    videoController.seekTo(start);
+                    setState(() {});
+                  },
+                  emptySelectionAllowed: true,
+                ),
+                Text('  ms'),
+              ],
+            ),
+          );
+        }),
       ],
     );
   }
