@@ -2,12 +2,13 @@ import 'dart:io';
 
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
-import 'package:flutter_desktop_video_capturer/pages/detector_images_pitches/provider/tmp.dart';
-
-import '../core/detector.dart';
-import '../detector_images_pitches_page.dart';
+import 'package:flutter_desktop_video_capturer/helpers/detector_images_pitches/src/models/models.dart';
+import 'package:flutter_desktop_video_capturer/helpers/detector_images_pitches/src/tmp_data.dart';
+import 'package:flutter_desktop_video_capturer/pages/detector_images_pitches/core/detector.dart';
 
 class DetectorImagesPitchesProvider extends ChangeNotifier {
+  DetectorImagesPitchesProvider();
+
   ImagePitchDetectorResult? _lastResult;
 
   ImagePitchDetectorResult? get lastResult => _lastResult;
@@ -20,7 +21,7 @@ class DetectorImagesPitchesProvider extends ChangeNotifier {
     notifyListeners();
   }
 
-  ImageResult? getImageResult(File f) {
+  DetectedPitchImageResult? getImageResult(File f) {
     return _lastResult?.getResult(f);
   }
 
@@ -37,9 +38,9 @@ class DetectorImagesPitchesProvider extends ChangeNotifier {
     if (barIndex < 0 || barIndex >= imageResult.bars.length) {
       return;
     }
-    final newBars = List<DetectedBar>.from(imageResult.bars)..add(imageResult.bars[barIndex]);
+    final newBars = List<DetectedPitch>.from(imageResult.bars)..add(imageResult.bars[barIndex]);
     final newResult = imageResult.copyWith(bars: newBars);
-    final newImages = List<ImageResult>.from(_lastResult!.images)..[resultIndex] = newResult;
+    final newImages = List<DetectedPitchImageResult>.from(_lastResult!.images)..[resultIndex] = newResult;
     _lastResult = _lastResult?.copyWith(images: newImages);
     notifyListeners();
   }
@@ -49,7 +50,7 @@ class DetectorImagesPitchesProvider extends ChangeNotifier {
     final res = _lastResult;
     if (res == null) return;
 
-    final previousProcessed = tmpProcessed.map((e) => ImageResult.fromJson(e)).toList();
+    final previousProcessed = tmpProcessed.map((e) => DetectedPitchImageResult.fromJson(e)).toList();
 
     _lastResult = res.copyWith(images: [...previousProcessed, ...res.images.skip(previousProcessed.length)]);
     notifyListeners();
@@ -92,9 +93,9 @@ class DetectorImagesPitchesProvider extends ChangeNotifier {
     if (resultIndex == null) {
       return;
     }
-    final newBars = List<DetectedBar>.from(imageResult.bars)..removeAt(barIndex);
+    final newBars = List<DetectedPitch>.from(imageResult.bars)..removeAt(barIndex);
     final newResult = imageResult.copyWith(bars: newBars);
-    final newImages = List<ImageResult>.from(_lastResult!.images)..[resultIndex] = newResult;
+    final newImages = List<DetectedPitchImageResult>.from(_lastResult!.images)..[resultIndex] = newResult;
     _lastResult = _lastResult?.copyWith(images: newImages);
     notifyListeners();
   }

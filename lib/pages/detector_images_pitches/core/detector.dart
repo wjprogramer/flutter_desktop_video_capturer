@@ -1,122 +1,14 @@
 import 'dart:math' as math;
 
 import 'package:equatable/equatable.dart';
+import 'package:flutter_desktop_video_capturer/helpers/detector_images_pitches/src/models/models.dart';
 import 'package:image/image.dart' as img;
 
-class DetectedBar {
-  final double xCenter; // 0..1
-  final double x0; // 0..1
-  final double x1; // 0..1
-  final double yUnits; // 以灰線間距為 1，由下往上；可為負
-  final double yNorm; // 投影到 0..1（夾在 0..1）
-  final double w;
-  final double h;
 
-  DetectedBar({
-    required this.xCenter,
-    required this.x0,
-    required this.x1,
-    required this.yUnits,
-    required this.yNorm,
-    required this.w,
-    required this.h,
-  });
-
-  Map<String, dynamic> toJson() =>
-      {
-        'x_center': xCenter,
-        'x0': x0,
-        'x1': x1,
-        'y_line_units': yUnits,
-        'y_norm_0_1': yNorm,
-        'w': w,
-        'h': h,
-      };
-}
-
-class ImageResult extends Equatable {
-  const ImageResult({
-    required this.file,
-    required this.width,
-    required this.height,
-    required this.gridLinesY,
-    required this.lineSpacingPx,
-    required this.bars,
-  });
-
-  final String file;
-
-  /// 圖片的寬度
-  final int width;
-
-  /// 圖片的高度
-  final int height;
-
-  /// 上->下 10 條灰線的 y（像素）
-  final List<int> gridLinesY;
-  final double lineSpacingPx;
-  final List<DetectedBar> bars;
-
-  factory ImageResult.fromJson(Map<String, dynamic> json) {
-    return ImageResult(
-      file: json['file'],
-      width: json['width'],
-      height: json['height'],
-      gridLinesY: List<int>.from(json['gridLinesY']),
-      lineSpacingPx: (json['lineSpacingPx'] as num).toDouble(),
-      bars: (json['bars'] as List)
-          .map(
-            (e) =>
-            DetectedBar(
-              xCenter: (e['x_center'] as num).toDouble(),
-              x0: (e['x0'] as num).toDouble(),
-              x1: (e['x1'] as num).toDouble(),
-              yUnits: (e['y_line_units'] as num).toDouble(),
-              yNorm: (e['y_norm_0_1'] as num).toDouble(),
-              w: (e['w'] as num).toDouble(),
-              h: (e['h'] as num).toDouble(),
-            ),
-      )
-          .toList(),
-    );
-  }
-
-  Map<String, dynamic> toJson() =>
-      {
-        'file': file,
-        'width': width,
-        'height': height,
-        'gridLinesY': gridLinesY,
-        'lineSpacingPx': lineSpacingPx,
-        'bars': bars.map((e) => e.toJson()).toList(),
-      };
-
-  ImageResult copyWith({
-    String? file,
-    int? width,
-    int? height,
-    List<int>? gridLinesY,
-    double? lineSpacingPx,
-    List<DetectedBar>? bars,
-  }) {
-    return ImageResult(
-      file: file ?? this.file,
-      width: width ?? this.width,
-      height: height ?? this.height,
-      gridLinesY: gridLinesY ?? this.gridLinesY,
-      lineSpacingPx: lineSpacingPx ?? this.lineSpacingPx,
-      bars: bars ?? this.bars,
-    );
-  }
-
-  @override
-  List<Object?> get props => [file, width, height, gridLinesY, lineSpacingPx, bars];
-}
 
 // ===== 核心流程 =====
-Future<ImageResult> processImage(String fileName, img.Image image, {List<int>? gridLinesYOverride}) async {
-  final w = image.width,
-      h = image.height;
+Future<DetectedPitchImageResult> processImage(String fileName, img.Image image, {List<int>? gridLinesYOverride}) async {
+  final w = image.width, h = image.height;
   final mask = _blueMask(image); // 1) 藍色遮罩 + 形態學
 
   // 在跑 BFS 之前，先移除垂直導引線
@@ -137,14 +29,14 @@ Future<ImageResult> processImage(String fileName, img.Image image, {List<int>? g
   }
 
   final boxes =
-  _connectedComponents(mask, w, h, getV: (x, y) => vImage[y * w + x]) // 2) 連通元件 -> bbox 過濾
-      .where((b) {
-    final bw = (b[2] - b[0] + 1).toDouble();
-    final bh = (b[3] - b[1] + 1).toDouble();
-    final ar = bw / math.max(1, bh);
-    return bw > 10 && bh > 2 && ar > 3; // 長橫條 + 去雜訊
-  })
-      .toList();
+      _connectedComponents(mask, w, h, getV: (x, y) => vImage[y * w + x]) // 2) 連通元件 -> bbox 過濾
+          .where((b) {
+            final bw = (b[2] - b[0] + 1).toDouble();
+            final bh = (b[3] - b[1] + 1).toDouble();
+            final ar = bw / math.max(1, bh);
+            return bw > 10 && bh > 2 && ar > 3; // 長橫條 + 去雜訊
+          })
+          .toList();
 
   final List<int> linesY = (gridLinesYOverride ?? []).isNotEmpty
       ? (gridLinesYOverride ?? [])
@@ -154,7 +46,7 @@ Future<ImageResult> processImage(String fileName, img.Image image, {List<int>? g
   final spacing = spacings.isEmpty ? h / 10.0 : spacings.reduce((a, b) => a + b) / spacings.length;
   final yBottom = linesY.isNotEmpty ? linesY.last.toDouble() : (h - 1).toDouble();
 
-  final bars = <DetectedBar>[];
+  final bars = <DetectedPitch>[];
   for (final b in boxes) {
     final x0 = b[0].toDouble();
     final y0 = b[1].toDouble();
@@ -172,30 +64,18 @@ Future<ImageResult> processImage(String fileName, img.Image image, {List<int>? g
     final resolvedH = ((y1 - y0 + 1) / h).clamp(0.065, 0.070);
 
     bars.add(
-      DetectedBar(xCenter: xcn,
-          x0: x0n,
-          x1: x1n,
-          yUnits: yUnits,
-          yNorm: yNorm,
-          w: (x1 - x0 + 1) / w,
-          h: resolvedH),
+      DetectedPitch(xCenter: xcn, x0: x0n, x1: x1n, yUnits: yUnits, yNorm: yNorm, w: (x1 - x0 + 1) / w, h: resolvedH),
     );
   }
 
   bars.sort((a, b) => a.xCenter.compareTo(b.xCenter));
 
-  return ImageResult(file: fileName,
-      width: w,
-      height: h,
-      gridLinesY: linesY,
-      lineSpacingPx: spacing,
-      bars: bars);
+  return DetectedPitchImageResult(file: fileName, width: w, height: h, gridLinesY: linesY, lineSpacingPx: spacing, bars: bars);
 }
 
 // ====== 1) 藍色遮罩（HSV）+ 形態學閉運算 ======
 List<int> _blueMask(img.Image im) {
-  final w = im.width,
-      h = im.height;
+  final w = im.width, h = im.height;
   final mask = List<int>.filled(w * h, 0);
   for (int y = 0; y < h; y++) {
     for (int x = 0; x < w; x++) {
@@ -204,9 +84,7 @@ List<int> _blueMask(img.Image im) {
       final g = p.gNormalized * 255.0;
       final b = p.bNormalized * 255.0;
       final hsv = _rgbToHsv(r, g, b);
-      final H = hsv[0],
-          S = hsv[1],
-          V = hsv[2];
+      final H = hsv[0], S = hsv[1], V = hsv[2];
       final isBlue = (H >= 185 && H <= 255) && S >= 0.35 && V >= 0.35;
       mask[y * w + x] = isBlue ? 1 : 0;
     }
@@ -320,11 +198,12 @@ List<int> _erode(List<int> mask, int w, int h, int k) {
 }
 
 // ====== 2) 連通元件（4-鄰域）回傳 bbox ======
-List<List<int>> _connectedComponents(List<int> mask,
-    int w,
-    int h, {
-      double Function(int x, int y)? getV, // 0..1 的亮度(Value)
-    }) {
+List<List<int>> _connectedComponents(
+  List<int> mask,
+  int w,
+  int h, {
+  double Function(int x, int y)? getV, // 0..1 的亮度(Value)
+}) {
   final labels = List<int>.filled(w * h, -1);
   final boxes = <List<int>>[]; // [x0,y0,x1,y1,area]
   int label = 0;
@@ -335,21 +214,15 @@ List<List<int>> _connectedComponents(List<int> mask,
     for (int x = 0; x < w; x++) {
       final i = y * w + x;
       if (mask[i] == 0 || labels[i] != -1) continue;
-      int head = 0,
-          tail = 0;
+      int head = 0, tail = 0;
       qx[tail] = x;
       qy[tail] = y;
       tail++;
       labels[i] = label;
-      int minx = x,
-          miny = y,
-          maxx = x,
-          maxy = y,
-          cnt = 0;
+      int minx = x, miny = y, maxx = x, maxy = y, cnt = 0;
 
       while (head < tail) {
-        final cx = qx[head],
-            cy = qy[head];
+        final cx = qx[head], cy = qy[head];
         head++;
         cnt++;
         const dirs = [
@@ -359,8 +232,7 @@ List<List<int>> _connectedComponents(List<int> mask,
           [0, -1],
         ];
         for (final d in dirs) {
-          final nx = cx + d[0],
-              ny = cy + d[1];
+          final nx = cx + d[0], ny = cy + d[1];
           if (nx < 0 || nx >= w || ny < 0 || ny >= h) continue;
           final ni = ny * w + nx;
           if (mask[ni] != 0 && labels[ni] == -1) {
@@ -391,8 +263,8 @@ List<List<int>> _connectedComponents(List<int> mask,
       final aspect = bw / (bh.toDouble() + 1e-6);
       final isHorizontalBarShape =
           aspect >= 3.0 && // 橫向拉長
-              bh >= 2 && // 至少 2px 高
-              bw >= (0.02 * w); // 不要太短的小碎片
+          bh >= 2 && // 至少 2px 高
+          bw >= (0.02 * w); // 不要太短的小碎片
       if (!isHorizontalBarShape) {
         label++;
         continue;
@@ -447,8 +319,7 @@ List<List<int>> _connectedComponents(List<int> mask,
 
 // ====== 3) 灰線偵測（逐列垂直梯度投影 + 峰值） ======
 List<int> _detectGridLines(img.Image im) {
-  final w = im.width,
-      h = im.height;
+  final w = im.width, h = im.height;
   // 灰階
   final gray = List<double>.filled(w * h, 0);
   for (int y = 0; y < h; y++) {
@@ -502,8 +373,7 @@ List<int> _detectGridLines(img.Image im) {
   final idx = List<int>.generate(cands.length, (i) => i);
   idx.sort((a, b) => scores[b].compareTo(scores[a]));
   final maxKeep = 60;
-  final kept = idx.take(maxKeep).map((i) => cands[i]).toList()
-    ..sort();
+  final kept = idx.take(maxKeep).map((i) => cands[i]).toList()..sort();
 
   // 用候選線（kept）挑出最等距的 10 條
   final best10 = _pickBestArithmetic10(kept, h);
@@ -557,8 +427,7 @@ List<int> _pickBestArithmetic10(List<int> cand, int h) {
   cand.sort();
   // 候選少於 10：先回歸出等距格，再「吸附」最近候選；缺的就用等距
   if (cand.length <= 10) {
-    final top = cand.first,
-        bot = cand.last;
+    final top = cand.first, bot = cand.last;
     final step = ((bot - top) / math.max(1, cand.length - 1)).clamp(2.0, h / 8);
     final approx = [for (int k = 0; k < 10; k++) (top + step * k).round()];
     return _snapToCandidates(approx, cand, h, win: 3);
@@ -583,8 +452,7 @@ List<int> _pickBestArithmetic10(List<int> cand, int h) {
   for (final i in [0, (cand.length ~/ 4), (cand.length ~/ 2), (cand.length * 3 ~/ 4), cand.length - 1]) {
     if (i >= 0 && i < cand.length) picks.add(i);
   }
-  final uniq = picks.toSet().toList()
-    ..sort();
+  final uniq = picks.toSet().toList()..sort();
 
   for (final ii in uniq) {
     for (final jj in uniq) {
@@ -627,12 +495,10 @@ List<int> _pickBestArithmetic10(List<int> cand, int h) {
   if (best.isNotEmpty) return best..sort();
 
   // 後備：用候選的首尾做等距，再吸附
-  final top = cand.first,
-      bot = cand.last;
+  final top = cand.first, bot = cand.last;
   final step = ((bot - top) / 9.0).clamp(2.0, h / 8);
   final approx = [for (int k = 0; k < 10; k++) (top + step * k).round()];
-  return _snapToCandidates(approx, cand, h, win: 4)
-    ..sort();
+  return _snapToCandidates(approx, cand, h, win: 4)..sort();
 }
 
 // 在每個預測 y 附近 ±win 內，吸附到最近候選（若沒有就保留原值）
@@ -681,8 +547,7 @@ List<double?> _assignSlots(List<double> slots, List<int> cand, double tau) {
 }
 
 int _lowerBound(List<int> a, int x) {
-  int lo = 0,
-      hi = a.length;
+  int lo = 0, hi = a.length;
   while (lo < hi) {
     final mid = (lo + hi) >> 1;
     if (a[mid] < x) {
@@ -706,9 +571,7 @@ void _suppressVerticalGuideBand(List<int> mask, int w, int h) {
 
   // 找出一段「高且連續」的窄帶（導引線），高度至少覆蓋 60% 以上
   final tall = (0.60 * h).round();
-  int bestL = -1,
-      bestR = -1,
-      bestScore = -1;
+  int bestL = -1, bestR = -1, bestScore = -1;
   int curL = -1;
   for (int x = 0; x < w; x++) {
     final ok = colSum[x] >= tall;

@@ -1,8 +1,10 @@
 import 'dart:io';
 
+import 'package:flutter_desktop_video_capturer/helpers/detector_images_pitches/src/models/image_pitch_detector_result.dart';
+import 'package:flutter_desktop_video_capturer/helpers/detector_images_pitches/src/utils.dart';
 import 'package:flutter_desktop_video_capturer/models/capture_meta_file.dart';
 
-import '../detector_images_pitches_page.dart';
+import '../../../pages/detector_images_pitches/detector_images_pitches_page.dart';
 
 class DetectPitchesExporter {
   DetectPitchesExporter({required this.previousStepResult, required this.metaFile, required this.inputFiles});
@@ -56,7 +58,7 @@ class DetectPitchesExporter {
         final y0 = yc - hpx / 2.0;
         final y1 = yc + hpx / 2.0;
 
-        final pitchIndex = getBarIndex(imageResult.gridLinesY, y0, y1);
+        final pitchIndex = getPitchIndex(imageResult.gridLinesY, y0, y1);
 
         final baseTime = segment.interval * i + Duration(seconds: 1 * segmentIndex);
         final start = (baseTime.inMilliseconds + segment.interval.inMilliseconds * x0).round();

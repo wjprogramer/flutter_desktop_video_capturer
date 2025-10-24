@@ -4,7 +4,7 @@ import 'dart:typed_data';
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_desktop_video_capturer/helpers/video_capturer/src/video_capturer.dart';
-import 'package:flutter_desktop_video_capturer/pages/detector_images_pitches/provider/detector_images_pitches_provider.dart';
+import 'package:flutter_desktop_video_capturer/helpers/detector_images_pitches/src/detector_images_pitches_provider.dart';
 import 'package:flutter_desktop_video_capturer/third_party/uuid/uuid.dart';
 import 'package:flutter_desktop_video_capturer/utilities/file_structure_utility.dart';
 import 'package:flutter_desktop_video_capturer/utilities/formatter.dart';
