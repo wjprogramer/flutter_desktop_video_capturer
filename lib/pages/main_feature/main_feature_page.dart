@@ -1,5 +1,6 @@
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter_desktop_video_capturer/external/flutter_singer_tools/tuning_fork/tuning_fork_controller/tuning_fork_controller.dart';
 import 'package:flutter_desktop_video_capturer/helpers/combine_with_lyrics/src/combine_with_lyrics_view_mixin.dart';
 import 'package:flutter_desktop_video_capturer/helpers/detector_images_pitches/src/detect_pitches_exporter.dart';
 import 'package:flutter_desktop_video_capturer/helpers/detector_images_pitches/src/detector_images_pitches_mixin.dart';
@@ -13,6 +14,7 @@ import 'package:flutter_desktop_video_capturer/widgets/video_capturer/pick_video
 import 'package:flutter_desktop_video_capturer/widgets/video_capturer/pick_video_hint.dart';
 import 'package:flutter_desktop_video_capturer/widgets/video_capturer/video_capturer_player.dart';
 import 'package:flutter_desktop_video_capturer/widgets/video_capturer/video_progress_and_rules_preview_slider.dart';
+import 'package:webview_windows/webview_windows.dart';
 
 enum _PitchesEditorMode {
   byImage,
@@ -58,6 +60,11 @@ class MainFeaturePage extends StatefulWidget {
 
 class _MainFeaturePageState extends State<MainFeaturePage>
     with VideoCapturerViewMixin, DetectorImagesPitchesViewMixin, CombineWithLyricsViewMixin {
+  late WebviewController _webController;
+  late TuningForkController _tuningController;
+
+  bool _isWebInitialized = false;
+
   _PitchesEditorMode _mode = _PitchesEditorMode.byImage;
 
   final TraceableHistory<DetectedPitchImagesAdjustTimeInfo> _adjustPitchHistory =
@@ -67,14 +74,35 @@ class _MainFeaturePageState extends State<MainFeaturePage>
   @override
   void initState() {
     super.initState();
+    _webController = WebviewController();
+    _tuningController = TuningForkController();
+
     initVideoCapturer();
     initCombineWithLyricsData(shouldLoadPitchData: false);
+    _initWebView();
 
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (kDebugMode) {
         pickVideoForCapturer(debugSetFilePath: true);
       }
     });
+  }
+
+  @override
+  void dispose() {
+    _webController.dispose();
+    _tuningController.stop();
+    super.dispose();
+  }
+
+  void _initWebView() async {
+    final assetsBundle = DefaultAssetBundle.of(context);
+    // load assets/html/oscillator_tuning_fork.html content
+    await _webController.initialize();
+    final htmlContent = await assetsBundle.loadString('assets/html/oscillator_tuning_fork.html');
+    await _webController.loadStringContent(htmlContent);
+
+    _isWebInitialized = true;
   }
 
   void _updateMode(_PitchesEditorMode mode) {
@@ -307,7 +335,9 @@ class _MainFeaturePageState extends State<MainFeaturePage>
                       _PitchesEditorMode.byImage => [
                         Text('預覽設定'),
                         SizedBox(height: 8),
-                        Row(
+                        Wrap(
+                          spacing: 12,
+                          runSpacing: 12,
                           children: [
                             FilledButton.icon(
                               onPressed: togglePreviewImagesDetectResult,
@@ -416,6 +446,7 @@ class _MainFeaturePageState extends State<MainFeaturePage>
                   ],
                 ),
               ),
+              Container(margin: const EdgeInsets.only(top: 16), height: 100, child: Webview(_webController)),
               if (!isGreaterTabletWidth)
                 ContentArea(
                   title: '預覽內容',
@@ -451,6 +482,8 @@ class _MainFeaturePageState extends State<MainFeaturePage>
 
   @override
   Widget build(BuildContext context) {
+    final screenSize = MediaQuery.of(context).size;
+
     return Scaffold(
       appBar: AppBar(title: const Text('主要功能'), actions: []),
       body: _buildBody(context),

@@ -1,0 +1,95 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Document</title>
+</head>
+<body>
+  
+<input type="range" id="freq" min="100" max="2000" value="440" oninput="setFrequency(this.value)">
+<label for="freq">Frequency</label><br>
+
+<input type="range" id="volume" min="0" max="1" step="0.01" value="0.1" oninput="setVolume(this.value)">
+<label for="volume">Volume</label><br>
+
+<label for="waveform">Waveform:</label>
+<select id="waveform" onchange="setWaveform(this.value)">
+  <option value="sine">Sine</option>
+  <option value="square">Square</option>
+  <option value="triangle">Triangle</option>
+  <option value="sawtooth">Sawtooth</option>
+</select><br>
+
+<button onclick="play()">Play</button>
+<button onclick="stop()">Stop</button>
+
+<script>
+  let context = new (window.AudioContext || window.webkitAudioContext)();
+  let oscillator;
+  let gainNode;
+
+  let configs = {
+    // 是否要自然衰減
+    'gain_envelope': false,
+    // 幾秒漸弱
+    'gain_envelope_time_in_seconds': 5,
+  };
+
+  function play(options) {
+    if (oscillator) {
+      stop();
+    }
+
+    const now = context.currentTime;
+    const frequency = options?.frequency != undefined ? options.frequency : document.getElementById('freq').value;
+    const volume = options?.volume != undefined ? options.volume : document.getElementById('volume').value;
+
+    oscillator = context.createOscillator();
+    gainNode = context.createGain();
+
+    oscillator.type = options?.waveform || 'sine';
+    oscillator.frequency.setValueAtTime(frequency, context.currentTime);
+
+    gainNode.gain.setValueAtTime(volume, now);
+    if (configs['gain_envelope']) {
+      gainNode.gain.exponentialRampToValueAtTime(0.001, now + configs['gain_envelope_time_in_seconds']);
+    }
+
+    // 聲音路徑：oscillator → gain → destination
+    oscillator.connect(gainNode).connect(context.destination);
+    oscillator.start();
+  }
+
+  function setVolume(value) {
+    if (gainNode) {
+      gainNode.gain.setValueAtTime(parseFloat(value), context.currentTime);
+    }
+  }
+
+  function setFrequency(value) {
+    if (oscillator) {
+      oscillator.frequency.setValueAtTime(parseFloat(value), context.currentTime);
+    }
+  }
+
+  function setWaveform(type) {
+    if (oscillator) {
+      oscillator.type = type;
+      stop();  // 停掉原來的 oscillator
+      play();  // 用新的 type 重建
+    }
+  }
+
+  function stop() {
+    if (oscillator) {
+      oscillator.stop();
+      oscillator.disconnect();
+      gainNode.disconnect();
+    }
+  }
+</script>
+
+
+</body>
+</html>
