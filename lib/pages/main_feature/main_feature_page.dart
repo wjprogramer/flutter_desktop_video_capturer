@@ -201,7 +201,15 @@ class _MainFeaturePageState extends State<MainFeaturePage>
 
     final previewContentItems = switch (_mode) {
       _PitchesEditorMode.byImage => [
-        if (capturedImageFiles.isEmpty) const Text('尚無擷取圖片，請先執行擷取') else ...buildDetectedPitchesImageViews(),
+        if (capturedImageFiles.isEmpty)
+          const Text('尚無擷取圖片，請先執行擷取')
+        else
+          ...buildDetectedPitchesImageViews(
+            onPlay: (frameTimeInfo) {
+              print(frameTimeInfo.startTime);
+              videoController.seekTo(frameTimeInfo.startTime);
+            },
+          ),
       ],
       _PitchesEditorMode.byLyrics => [
         SizedBox(height: 8),

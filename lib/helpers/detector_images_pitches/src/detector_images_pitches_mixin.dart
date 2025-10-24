@@ -137,7 +137,7 @@ mixin DetectorImagesPitchesViewMixin<T extends StatefulWidget> on State<T> {
     setState(() => _running = false);
   }
 
-  List<Widget> buildDetectedPitchesImageViews() {
+  List<Widget> buildDetectedPitchesImageViews({ValueChanged<FrameTimeInfo>? onPlay}) {
     final results = <Widget>[];
     int? segmentIndex;
 
@@ -177,6 +177,8 @@ mixin DetectorImagesPitchesViewMixin<T extends StatefulWidget> on State<T> {
               },
             ),
             Text(getStartDuration(file).toString()),
+            const SizedBox(width: 8),
+            if (onPlay != null && timeInfo != null) IconButton(onPressed: () => onPlay(timeInfo), icon: const Icon(Icons.play_arrow)),
           ],
         ),
       );
@@ -327,8 +329,6 @@ mixin DetectorImagesPitchesViewMixin<T extends StatefulWidget> on State<T> {
     final timeInfo = captureMeta.getTimeInfoFromZero(index);
     return timeInfo.startTime + _adjustImageTimeInfo.getDiffDuration(timeInfo.startTime);
   }
-
-
 }
 
 /// 比對兩個 List 是否內容相同（順序也要相同）
