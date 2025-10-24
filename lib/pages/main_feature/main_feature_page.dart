@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_desktop_video_capturer/helpers/combine_with_lyrics/src/combine_with_lyrics_view_mixin.dart';
 import 'package:flutter_desktop_video_capturer/helpers/detector_images_pitches/src/detector_images_pitches_mixin.dart';
 import 'package:flutter_desktop_video_capturer/helpers/video_capturer/src/capture_segment.dart';
 import 'package:flutter_desktop_video_capturer/helpers/video_capturer/src/video_capturer_view_mixin.dart';
@@ -44,13 +45,15 @@ class MainFeaturePage extends StatefulWidget {
   State<MainFeaturePage> createState() => _MainFeaturePageState();
 }
 
-class _MainFeaturePageState extends State<MainFeaturePage> with VideoCapturerViewMixin, DetectorImagesPitchesViewMixin {
+class _MainFeaturePageState extends State<MainFeaturePage>
+    with VideoCapturerViewMixin, DetectorImagesPitchesViewMixin, CombineWithLyricsViewMixin {
   _PitchesEditorMode _mode = _PitchesEditorMode.byImage;
 
   @override
   void initState() {
     super.initState();
     initVideoCapturer();
+    initCombineWithLyricsData();
   }
 
   void _updateMode(_PitchesEditorMode mode) {
@@ -403,7 +406,57 @@ class _MainFeaturePageState extends State<MainFeaturePage> with VideoCapturerVie
                         else
                           ...buildDetectedPitchesImageViews(),
                       ],
-                      _PitchesEditorMode.byLyrics => [],
+                      _PitchesEditorMode.byLyrics => [
+                        SizedBox(height: 8),
+                        Wrap(
+                          runSpacing: 12,
+                          spacing: 12,
+                          children: [
+                            // Undo / Redo
+                            FilledButton.tonalIcon(
+                              onPressed: undoStack.isEmpty ? null : undo,
+                              icon: const Icon(Icons.undo),
+                              label: const Text('Undo'),
+                            ),
+                            FilledButton.tonalIcon(
+                              onPressed: redoStack.isEmpty ? null : redo,
+                              icon: const Icon(Icons.redo),
+                              label: const Text('Redo'),
+                            ),
+                            FilledButton.tonalIcon(
+                              onPressed: debugPrintPitchDataList,
+                              icon: const Icon(Icons.code),
+                              label: const Text('Print Pitch Data'),
+                            ),
+                            if (selectedPitch == null)
+                              const Text('點一下上方的 pitch bar 以選取並微調')
+                            else ...[
+                              Text('選取起點: ${selectedPitch!.start.inMilliseconds} ms'),
+                              FilledButton(
+                                onPressed: () =>
+                                    shiftPitchesFrom(selectedPitch!.start, const Duration(milliseconds: -10)),
+                                child: const Text('-10ms'),
+                              ),
+                              FilledButton(
+                                onPressed: () =>
+                                    shiftPitchesFrom(selectedPitch!.start, const Duration(milliseconds: -50)),
+                                child: const Text('-50ms'),
+                              ),
+                              FilledButton(
+                                onPressed: () =>
+                                    shiftPitchesFrom(selectedPitch!.start, const Duration(milliseconds: 10)),
+                                child: const Text('+10ms'),
+                              ),
+                              FilledButton(
+                                onPressed: () =>
+                                    shiftPitchesFrom(selectedPitch!.start, const Duration(milliseconds: 50)),
+                                child: const Text('+50ms'),
+                              ),
+                            ],
+                            ...buildLyricsAndPitchChildren(),
+                          ],
+                        ),
+                      ],
                     },
                   ],
                 ],

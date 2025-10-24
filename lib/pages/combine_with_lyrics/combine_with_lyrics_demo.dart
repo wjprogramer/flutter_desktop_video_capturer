@@ -1,5 +1,3 @@
-import 'dart:convert';
-
 import 'package:flutter/material.dart';
 import 'package:flutter_desktop_video_capturer/helpers/combine_with_lyrics/src/combine_with_lyrics_view_mixin.dart';
 
@@ -17,18 +15,6 @@ class _CombineWithLyricsDemoPageState extends State<CombineWithLyricsDemoPage> w
   void initState() {
     super.initState();
     initCombineWithLyricsData();
-  }
-
-  void debugPrintPitchDataList() {
-    print(
-      pitchData.map((p) {
-        return JsonEncoder().convert({
-          'pitch': p.pitchIndex,
-          'start_in_ms': p.start.inMilliseconds,
-          'end_in_ms': p.end.inMilliseconds,
-        });
-      }).toList(),
-    );
   }
 
   @override

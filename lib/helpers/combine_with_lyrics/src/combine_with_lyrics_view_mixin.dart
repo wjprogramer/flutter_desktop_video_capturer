@@ -1,3 +1,5 @@
+import 'dart:convert';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_desktop_video_capturer/demo_data/dry_flower/data.dart';
 import 'package:flutter_desktop_video_capturer/demo_data/dry_flower/pitch_data.dart';
@@ -6,6 +8,7 @@ import 'package:flutter_desktop_video_capturer/external/flutter_singer/widgets/l
 import 'package:flutter_desktop_video_capturer/external/flutter_singer_tools/models/note_name.dart';
 import 'package:flutter_desktop_video_capturer/external/flutter_singer_tools/models/pitch_name.dart';
 import 'package:flutter_desktop_video_capturer/helpers/combine_with_lyrics/src/models/pitch_data.dart';
+import 'package:flutter_desktop_video_capturer/helpers/detector_images_pitches/src/models/detected_pitch_image_result.dart';
 
 mixin CombineWithLyricsViewMixin<T extends StatefulWidget> on State<T> {
   List<PitchData> _pitchData = [];
@@ -32,6 +35,22 @@ mixin CombineWithLyricsViewMixin<T extends StatefulWidget> on State<T> {
   void initCombineWithLyricsData() {
     _pitchData = demoDryFlowerPitchData.map((e) => PitchData.fromJson(e)).toList();
     _lyricsLines = (demoDryFlower['lines'] as List).map((e) => LyricsLine.fromJson(e)).toList();
+  }
+
+  void setPitchDataListByImageResults(List<DetectedPitchImageResult> results) {
+
+  }
+
+  void debugPrintPitchDataList() {
+    print(
+      pitchData.map((p) {
+        return JsonEncoder().convert({
+          'pitch': p.pitchIndex,
+          'start_in_ms': p.start.inMilliseconds,
+          'end_in_ms': p.end.inMilliseconds,
+        });
+      }).toList(),
+    );
   }
 
   void shiftPitchesFrom(Duration start, Duration delta) {
