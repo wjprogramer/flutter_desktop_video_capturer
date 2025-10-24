@@ -32,14 +32,14 @@ mixin CombineWithLyricsViewMixin<T extends StatefulWidget> on State<T> {
 
   List<List<PitchData>> get redoStack => _redoStack;
 
-  void initCombineWithLyricsData() {
-    _pitchData = demoDryFlowerPitchData.map((e) => PitchData.fromJson(e)).toList();
+  void initCombineWithLyricsData({bool shouldLoadPitchData = true}) {
+    if (shouldLoadPitchData) {
+      _pitchData = demoDryFlowerPitchData.map((e) => PitchData.fromJson(e)).toList();
+    }
     _lyricsLines = (demoDryFlower['lines'] as List).map((e) => LyricsLine.fromJson(e)).toList();
   }
 
-  void setPitchDataListByImageResults(List<DetectedPitchImageResult> results) {
-
-  }
+  void setPitchDataListByImageResults(List<DetectedPitchImageResult> results) {}
 
   void debugPrintPitchDataList() {
     print(

@@ -8,6 +8,7 @@ class ContentArea extends StatefulWidget {
     required this.title,
     this.child,
     this.topMargin = 8,
+    this.expand,
     this.canExpand = true,
     this.shrinkWrap = true,
   });
@@ -17,6 +18,8 @@ class ContentArea extends StatefulWidget {
   final Widget? child;
 
   final double topMargin;
+
+  final bool? expand;
 
   final bool canExpand;
 
@@ -28,6 +31,8 @@ class ContentArea extends StatefulWidget {
 
 class _ContentAreaState extends State<ContentArea> {
   var _expanded = true;
+
+  bool get _resolvedExpanded => widget.expand ?? _expanded;
 
   bool _isHoverExpandButton = false;
 
@@ -72,7 +77,7 @@ class _ContentAreaState extends State<ContentArea> {
                     opacity: _isHoverExpandButton ? 1.0 : 0.3,
                     duration: const Duration(milliseconds: 200),
                     child: IconButton(
-                      icon: Icon(_expanded ? CupertinoIcons.chevron_down : CupertinoIcons.chevron_up, size: 16),
+                      icon: Icon(_resolvedExpanded ? CupertinoIcons.chevron_down : CupertinoIcons.chevron_up, size: 16),
                       padding: EdgeInsets.zero,
                       constraints: const BoxConstraints(),
                       onPressed: _toggleExpanded,
@@ -81,7 +86,7 @@ class _ContentAreaState extends State<ContentArea> {
                 ),
         ),
         SizedBox(height: 12),
-        if (_expanded)
+        if (_resolvedExpanded)
           resolvedChild,
       ],
     );

@@ -18,9 +18,9 @@ enum _PitchesEditorMode {
   String get displayName {
     switch (this) {
       case _PitchesEditorMode.byImage:
-        return '圖片辨識模式';
+        return '圖片模式';
       case _PitchesEditorMode.byLyrics:
-        return '歌詞編輯模式';
+        return '歌詞模式';
     }
   }
 
@@ -57,7 +57,7 @@ class _MainFeaturePageState extends State<MainFeaturePage>
   void initState() {
     super.initState();
     initVideoCapturer();
-    initCombineWithLyricsData();
+    initCombineWithLyricsData(shouldLoadPitchData: false);
 
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (kDebugMode) {
@@ -325,10 +325,7 @@ class _MainFeaturePageState extends State<MainFeaturePage>
             title: '預覽內容',
             canExpand: false,
             shrinkWrap: false,
-            child: ListView(
-              padding: const EdgeInsets.fromLTRB(0, 0, 16, 40),
-              children: previewContentItems
-            ),
+            child: ListView(padding: const EdgeInsets.fromLTRB(0, 0, 16, 40), children: previewContentItems),
           ),
         ),
       ],
