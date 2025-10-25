@@ -83,7 +83,7 @@ class _MainFeaturePageState extends State<MainFeaturePage>
     _tuningForkPlayer = TuningForkPlayer(_tuningController);
 
     initVideoCapturer(taskId: debugUseDryFlower ? 'debug_task_don_t_delete' : null);
-    initCombineWithLyricsData(shouldLoadPitchData: false);
+    initCombineWithLyricsData(useDemoDryFlower: debugUseDryFlower);
     _initWebView();
 
     WidgetsBinding.instance.addPostFrameCallback((_) async {

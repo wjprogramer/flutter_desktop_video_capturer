@@ -2,28 +2,14 @@ import 'dart:convert';
 
 import 'package:flutter/material.dart';
 import 'package:flutter_desktop_video_capturer/demo_data/dry_flower/data.dart';
-import 'package:flutter_desktop_video_capturer/demo_data/dry_flower/pitch_data.dart';
+import 'package:flutter_desktop_video_capturer/extensions/extensions.dart';
 import 'package:flutter_desktop_video_capturer/external/flutter_singer/models/models.dart';
 import 'package:flutter_desktop_video_capturer/external/flutter_singer/widgets/lyrics_line_view.dart';
 import 'package:flutter_desktop_video_capturer/external/flutter_singer_tools/models/note_name.dart';
 import 'package:flutter_desktop_video_capturer/external/flutter_singer_tools/models/pitch_name.dart';
 import 'package:flutter_desktop_video_capturer/helpers/combine_with_lyrics/src/models/pitch_data.dart';
-import 'package:flutter_desktop_video_capturer/helpers/detector_images_pitches/src/detector_images_pitches_mixin.dart';
-import 'package:flutter_desktop_video_capturer/helpers/traceable_history.dart';
 
-enum _Mode {
-  /// 主功能: 整合功能「擷取影片、辨識圖片、結合歌詞」，因此需要另外另外處理 pitch data 的調整
-  mainFeature,
-
-  /// 單一功能: 根據圖片辨識的結果，進行調整，不包含「擷取影片、圖片辨識」的流程
-  singleFeature,
-}
-
-/// [_Mode.mainFeature] 不可以隨意使用這個 mixin，因為 PitchData 的調整邏輯會不一樣
-/// pitch data 會由 [DetectorImagesPitchesViewMixin] 控制
 mixin CombineWithLyricsViewMixin<T extends StatefulWidget> on State<T> {
-  _Mode _mode = _Mode.singleFeature;
-
   List<PitchData> _pitchData = [];
 
   List<PitchData> get pitchData => _pitchData;
@@ -37,24 +23,15 @@ mixin CombineWithLyricsViewMixin<T extends StatefulWidget> on State<T> {
 
   PitchData? get selectedPitch => _selectedPitch;
 
-  final TraceableHistory<List<PitchData>> _history = TraceableHistory<List<PitchData>>();
-
-  bool canUndo() => _history.canUndo;
-
-  bool canRedo() => _history.canRedo;
-
-  void initCombineWithLyricsData({bool shouldLoadPitchData = true, bool isFromMainFeature = false}) {
-    _mode = isFromMainFeature ? _Mode.mainFeature : _Mode.singleFeature;
-    if (shouldLoadPitchData) {
-      _pitchData = demoDryFlowerPitchData.map((e) => PitchData.fromJson(e)).toList();
+  void initCombineWithLyricsData({bool useDemoDryFlower = false}) {
+    if (useDemoDryFlower) {
+      _lyricsLines = (demoDryFlower['lines'] as List).map((e) => LyricsLine.fromJson(e)).toList();
     }
-    _lyricsLines = (demoDryFlower['lines'] as List).map((e) => LyricsLine.fromJson(e)).toList();
   }
 
   void setPitchDataList(List<PitchData> pitchData) {
-    _pushHistory();
     _pitchData = pitchData;
-    setState(() { });
+    safeSetState(() {});
   }
 
   void debugPrintPitchDataList() {
@@ -67,61 +44,6 @@ mixin CombineWithLyricsViewMixin<T extends StatefulWidget> on State<T> {
         });
       }).toList(),
     );
-  }
-
-  void shiftPitchesFrom(Duration start, Duration delta) {
-    _pushHistory();
-
-    // 先記住目前選取的 pitch（若它會被平移，記下平移後的時間）
-    final sel = _selectedPitch;
-    final bool selWillMove = sel != null && sel.start >= start;
-    final Duration? selNewStart = selWillMove ? sel.start + delta : null;
-    final Duration? selNewEnd = selWillMove ? sel.end + delta : null;
-
-    setState(() {
-      // 1) 做平移
-      _pitchData = _pitchData.map((p) {
-        if (p.start >= start) {
-          return PitchData(pitchIndex: p.pitchIndex, start: p.start + delta, end: p.end + delta);
-        }
-        return p;
-      }).toList();
-
-      // 2) 若選取的那條被平移了，重新在新陣列裡指向它
-      if (selWillMove && selNewStart != null && selNewEnd != null) {
-        // 以 pitchIndex + start/end 完整匹配，避免誤配
-        final idx = _pitchData.indexWhere(
-          (p) => p.pitchIndex == sel.pitchIndex && p.start == selNewStart && p.end == selNewEnd,
-        );
-        if (idx != -1) {
-          _selectedPitch = _pitchData[idx];
-        } else {
-          // 找不到就先清掉，避免指向舊物件
-          _selectedPitch = null;
-        }
-      }
-    });
-  }
-
-  void _pushHistory() {
-    _history.add(_snapshot(_pitchData));
-  }
-
-  List<PitchData> _snapshot(List<PitchData> src) =>
-      src.map((p) => PitchData(pitchIndex: p.pitchIndex, start: p.start, end: p.end)).toList();
-
-  void undo() {
-    final curr = _history.undo();
-    if (curr == null) return;
-    _pitchData = curr;
-    setState(() {});
-  }
-
-  void redo() {
-    final curr = _history.redo();
-    if (curr == null) return;
-    _pitchData = curr;
-    setState(() {});
   }
 
   void setSelectedPitch(PitchData? pitch) {
