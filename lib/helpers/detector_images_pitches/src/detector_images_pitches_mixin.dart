@@ -54,6 +54,9 @@ mixin DetectorImagesPitchesViewMixin<T extends StatefulWidget> on State<T> {
 
   File? get selectedImageFile => _selectedFile;
 
+  /// Segment 是否被展開
+  final Map<int, bool> _segmentExpandedState = {};
+
   /// set [_captureMeta]
   void setCaptureMeta(CaptureMeta? meta) {
     _captureMeta = meta;
@@ -107,9 +110,7 @@ mixin DetectorImagesPitchesViewMixin<T extends StatefulWidget> on State<T> {
     });
   }
 
-  Future<void> tryRunDetectImagesPitches({
-    required String? inputDir,
-  }) async {
+  Future<void> tryRunDetectImagesPitches({required String? inputDir}) async {
     if (inputDir == null || inputDir.isEmpty) {
       showToast('請先選擇輸入資料夾');
       return;
@@ -150,15 +151,35 @@ mixin DetectorImagesPitchesViewMixin<T extends StatefulWidget> on State<T> {
 
       if (currentSegmentIndex != segmentIndex) {
         results.add(
-          Padding(
-            padding: const EdgeInsets.symmetric(vertical: 8),
-            child: Text(
-              'Segment ${currentSegmentIndex ?? '?'}',
-              style: const TextStyle(fontSize: 14, fontWeight: FontWeight.bold),
-            ),
+          Row(
+            children: [
+              Padding(
+                padding: const EdgeInsets.symmetric(vertical: 8),
+                child: Text(
+                  'Segment ${currentSegmentIndex ?? '?'}',
+                  style: const TextStyle(fontSize: 14, fontWeight: FontWeight.bold),
+                ),
+              ),
+              const SizedBox(width: 8),
+              IconButton(
+                onPressed: () {
+                  setState(() {
+                    _segmentExpandedState[currentSegmentIndex ?? -1] =
+                        !(_segmentExpandedState[currentSegmentIndex ?? -1] ?? true);
+                  });
+                },
+                icon: Icon(
+                  (_segmentExpandedState[currentSegmentIndex ?? -1] ?? true) ? Icons.expand_less : Icons.expand_more,
+                ),
+              ),
+            ],
           ),
         );
         segmentIndex = currentSegmentIndex;
+      }
+
+      if (!(_segmentExpandedState[currentSegmentIndex ?? -1] ?? true)) {
+        continue;
       }
 
       results.add(
@@ -180,7 +201,8 @@ mixin DetectorImagesPitchesViewMixin<T extends StatefulWidget> on State<T> {
             ),
             Text(getStartDuration(file).toString()),
             const SizedBox(width: 8),
-            if (onPlay != null && timeInfo != null) IconButton(onPressed: () => onPlay(timeInfo), icon: const Icon(Icons.play_arrow)),
+            if (onPlay != null && timeInfo != null)
+              IconButton(onPressed: () => onPlay(timeInfo), icon: const Icon(Icons.play_arrow)),
           ],
         ),
       );
