@@ -10,6 +10,12 @@ import 'package:path/path.dart' as p;
 
 import 'models.dart';
 
+/// 經實測 [manualTimestamps] 確實比較精準，雖然速度比較慢 (慢超級超級多)，但精準優先，因此預設改用此模式。
+enum CaptureMode {
+  ffmpegFps, // 舊有做法：以 fps 濾鏡批次輸出
+  manualTimestamps, // 新做法：逐張指定 -ss 精準擷取
+}
+
 class VideoCapturer {
   VideoCapturer();
 
@@ -202,6 +208,58 @@ class VideoCapturer {
   /// 嘗試開始執行擷取
   void tryExecute() {}
 
+  List<int> _buildPlannedTimesMs({required Duration start, required Duration? end, required Duration interval}) {
+    // final List<int> times = [];
+    // final endMs = end?.inMilliseconds;
+    // for (int t = start.inMilliseconds; ; t += interval.inMilliseconds) {
+    //   if (endMs != null && t > endMs) break;
+    //   times.add(t);
+    //   if (interval.inMilliseconds <= 0) break;
+    // }
+
+    // 計劃擷取時間（理想值）
+    final plannedTimes = <int>[];
+    for (
+      int t = start.inMilliseconds;
+      t <= (end?.inMilliseconds ?? start.inMilliseconds);
+      t += interval.inMilliseconds
+    ) {
+      plannedTimes.add(t);
+    }
+    return plannedTimes;
+    // return times;
+  }
+
+  Future<int> _captureOneFrame({
+    required String inputPath,
+    required String outputPath,
+    required Duration at, // 影片時間軸位置
+    required int x,
+    required int y,
+    required int w,
+    required int h,
+    required bool accurateSeek, // true: -ss 在 -i 後（精準）
+  }) async {
+    final ss = (at.inMicroseconds / 1e6).toStringAsFixed(6); // 高精度秒字串
+    final crop = 'crop=$w:$h:$x:$y';
+
+    final args = <String>[
+      '-hide_banner',
+      '-loglevel', 'error',
+      if (!accurateSeek) ...['-ss', ss], // 快速 seek（不精準）
+      '-i', inputPath,
+      if (accurateSeek) ...['-ss', ss], // 精準 seek（在 -i 後）
+      '-vf', crop,
+      '-frames:v', '1',
+      '-y', // overwrite
+      outputPath,
+    ];
+
+    final p = await Process.start('ffmpeg', args);
+    p.stderr.transform(SystemEncoding().decoder).listen((e) => print('ffmpeg: $e'));
+    return await p.exitCode;
+  }
+
   /// ## 注意路徑
   ///
   /// 如果有改到路徑相關要特別注意。
@@ -216,6 +274,8 @@ class VideoCapturer {
     required Duration start, // 保留參數相容，但實際改用 rules
     required Duration interval, // 保留參數相容
     required Duration videoDuration,
+    CaptureMode mode = CaptureMode.manualTimestamps,
+    bool accurateSeek = true, // -ss 放在 -i 後面（精準慢）或前面（快速不精準）
   }) async {
     if (_videoPath == null || _rules.isEmpty || _rectVideoPx == null) {
       throw Exception('Video path, rules, or rect is not set.');
@@ -257,6 +317,9 @@ class VideoCapturer {
       final w = r.rect.width.round();
       final h = r.rect.height.round();
 
+      // 計劃擷取時間（理想值）
+      final plannedTimes = _buildPlannedTimesMs(start: r.start, end: r.end, interval: r.interval);
+
       // Future<void> forceCaptureSegStart() async {
       //   // 先強制擷取「段落起點」的一張
       //   final startStillPath = p.join(segDir.path, 'frame_0000.png');
@@ -288,58 +351,69 @@ class VideoCapturer {
       //
       // await forceCaptureSegStart();
 
-      // 計算 fps (interval 毫秒 -> 1 / 秒數)
-      final fps = 1 / (r.interval.inMilliseconds / 1000.0);
-      final durationSec = ((r.end ?? videoDuration) - r.start).inMilliseconds / 1000.0;
+      if (mode == CaptureMode.ffmpegFps) {
+        // 計算 fps (interval 毫秒 -> 1 / 秒數)
+        final fps = 1 / (r.interval.inMilliseconds / 1000.0);
+        final durationSec = ((r.end ?? videoDuration) - r.start).inMilliseconds / 1000.0;
 
-      final args = [
-        '-hide_banner',
-        '-loglevel',
-        'info',
-        '-ss',
-        (r.start.inMilliseconds / 1000).toStringAsFixed(3),
-        '-i',
-        inputPath,
-        '-t',
-        durationSec.toStringAsFixed(3),
-        '-vf',
-        'crop=$w:$h:$x:$y,fps=$fps',
-        // %04d => 避免後面排序有問題
-        // ffmpeg 預設從 1 開始編號，所以前面強制擷取的起點單張是 frame_0000.png
-        p.join(segDir.path, 'frame_%04d.png'),
-      ];
+        final args = [
+          '-hide_banner',
+          '-loglevel',
+          'info',
+          '-ss',
+          (r.start.inMilliseconds / 1000).toStringAsFixed(3),
+          '-i',
+          inputPath,
+          '-t',
+          durationSec.toStringAsFixed(3),
+          '-vf',
+          'crop=$w:$h:$x:$y,fps=$fps',
+          // %04d => 避免後面排序有問題
+          // ffmpeg 預設從 1 開始編號，所以前面強制擷取的起點單張是 frame_0000.png
+          p.join(segDir.path, 'frame_%04d.png'),
+        ];
 
-      print('執行: ffmpeg ${args.join(' ')}');
-      try {
-        final process = await Process.start('ffmpeg', args);
-        process.stdout.transform(SystemEncoding().decoder).listen((data) => print('stdout: $data'));
-        process.stderr.transform(SystemEncoding().decoder).listen((data) => print('stderr: $data'));
-        final code = await process.exitCode;
+        print('執行: ffmpeg ${args.join(' ')}');
+        try {
+          final process = await Process.start('ffmpeg', args);
+          process.stdout.transform(SystemEncoding().decoder).listen((data) => print('stdout: $data'));
+          process.stderr.transform(SystemEncoding().decoder).listen((data) => print('stderr: $data'));
+          final code = await process.exitCode;
 
-        // rename frame_%d
-        final files = segDir.listSync().whereType<File>().where((f) => p.basename(f.path).startsWith('frame_'));
-        final sortedFiles = files.toList()..sort((a, b) => a.path.compareTo(b.path));
-        for (final f in sortedFiles) {
-          // padLeft(4, '0') => 避免後面排序有問題
-          final newName = 'f_${imageIndex.toString().padLeft(4, '0')}${p.extension(f.path)}';
-          final newPath = p.join(segDir.path, newName);
-          f.renameSync(newPath);
+          // rename frame_%d
+          final files = segDir.listSync().whereType<File>().where((f) => p.basename(f.path).startsWith('frame_'));
+          final sortedFiles = files.toList()..sort((a, b) => a.path.compareTo(b.path));
+          for (final f in sortedFiles) {
+            // padLeft(4, '0') => 避免後面排序有問題
+            final newName = 'f_${imageIndex.toString().padLeft(4, '0')}${p.extension(f.path)}';
+            final newPath = p.join(segDir.path, newName);
+            f.renameSync(newPath);
+            imageIndex++;
+          }
+
+          print('完成 seg_$i，exit=$code');
+        } catch (e) {
+          print('啟動 ffmpeg 失敗: $e');
+        }
+      } else {
+        for (int k = 0; k < plannedTimes.length; k++) {
+          final tMs = plannedTimes[k];
+          final out = p.join(segDir.path, 'f_${imageIndex.toString().padLeft(4, '0')}.png');
+          final code = await _captureOneFrame(
+            inputPath: inputPath,
+            outputPath: out,
+            at: Duration(milliseconds: tMs),
+            x: x,
+            y: y,
+            w: w,
+            h: h,
+            accurateSeek: accurateSeek,
+          );
+          if (code != 0) {
+            print('單張擷取失敗 seg=$i idx=$k t=${tMs}ms exit=$code');
+          }
           imageIndex++;
         }
-
-        print('完成 seg_$i，exit=$code');
-      } catch (e) {
-        print('啟動 ffmpeg 失敗: $e');
-      }
-
-      // 計劃擷取時間（理想值）
-      final plannedTimes = <int>[];
-      for (
-        int t = r.start.inMilliseconds;
-        t <= (r.end?.inMilliseconds ?? r.start.inMilliseconds);
-        t += r.interval.inMilliseconds
-      ) {
-        plannedTimes.add(t);
       }
 
       meta.segments.add(
