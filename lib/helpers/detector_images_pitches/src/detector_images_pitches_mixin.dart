@@ -154,7 +154,7 @@ mixin DetectorImagesPitchesViewMixin<T extends StatefulWidget> on State<T> {
             padding: const EdgeInsets.symmetric(vertical: 8),
             child: Text(
               'Segment ${currentSegmentIndex ?? '?'}',
-              style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+              style: const TextStyle(fontSize: 14, fontWeight: FontWeight.bold),
             ),
           ),
         );

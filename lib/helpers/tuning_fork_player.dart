@@ -4,12 +4,11 @@ import 'package:flutter_desktop_video_capturer/external/flutter_singer_tools/tun
 import 'package:flutter_desktop_video_capturer/external/flutter_singer_tools/tuning_fork/tuning_fork_controller/tuning_fork_controller.dart';
 import 'package:flutter_desktop_video_capturer/helpers/combine_with_lyrics/src/models/pitch_data.dart';
 
+// TODO:
+//    (1) 要把所有 notes 給 html 播放
+//    (2) html 那邊要寫一個 function 可以讓 flutter 呼叫，確認現在播放時間 (額外資訊，呼叫 js 的時間，以及 flutter 接收到的時間，要做誤差的校正)
 class TuningForkPlayer {
-  TuningForkPlayer(this.controller, {
-    this.defaultVolume = 0.1,
-    this.defaultWaveform = Waveform.sine,
-
-  });
+  TuningForkPlayer(this.controller, {this.defaultVolume = 0.1, this.defaultWaveform = Waveform.sine});
 
   final TuningForkController controller;
   final double defaultVolume;
@@ -21,10 +20,7 @@ class TuningForkPlayer {
 
   /// 播放一串音符。`notes` 的 start/end 皆以同一時間軸（相對 0）計。
   /// 若有重疊，後開始者會覆蓋前者（單音器）。
-  Future<void> playSequence(List<PitchData> notes, {
-    Duration startAt = Duration.zero,
-    Duration? endAt,
-  }) async {
+  Future<void> playSequence(List<PitchData> notes, {Duration startAt = Duration.zero, Duration? endAt}) async {
     if (notes.isEmpty) return;
 
     // 事件：note-on / note-off
@@ -60,28 +56,20 @@ class TuningForkPlayer {
     final tail = <_Event>[];
     for (final e in events) {
       if (e.time >= startAt && (endAt == null || e.time < endAt)) {
-        tail.add(_Event(
-          time: e.time - startAt,
-          type: e.type,
-          pitchIndex: e.pitchIndex,
-        ));
+        tail.add(_Event(time: e.time - startAt, type: e.type, pitchIndex: e.pitchIndex));
       }
     }
 
     // 若起點當下本來就該在鳴音，插入一個立即的 on 事件於 t=0，並確保有對應的 off 在隊列內
     if (lastOnBefore != null) {
-      tail.insert(
-        0,
-        _Event(time: Duration.zero, type: _EventType.on, pitchIndex: lastOnBefore.pitchIndex),
-      );
+      tail.insert(0, _Event(time: Duration.zero, type: _EventType.on, pitchIndex: lastOnBefore.pitchIndex));
       // 如果對應 off 在 startAt 之後，時間也要平移
       if (firstOffAfter != null) {
         final offTime = firstOffAfter.time - startAt;
         // 若 tail 內已經有相同音的 off（通常會有），就不用特別加
-        final hasOff = tail.any((e) =>
-        e.type == _EventType.off &&
-            e.time == offTime &&
-            e.pitchIndex == firstOffAfter!.pitchIndex);
+        final hasOff = tail.any(
+          (e) => e.type == _EventType.off && e.time == offTime && e.pitchIndex == firstOffAfter!.pitchIndex,
+        );
         if (!hasOff) {
           tail.add(_Event(time: offTime, type: _EventType.off, pitchIndex: firstOffAfter.pitchIndex));
         }
