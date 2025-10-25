@@ -104,6 +104,8 @@ class _MainFeaturePageState extends State<MainFeaturePage>
       final captureOutDir = await getCapturedImagesOutputDirectoryIfExists();
       if (captureOutDir == null) return;
 
+      addRulesAndStopPointsForDebug();
+
       setState(() {
         setCapturedImageFiles(getCapturedImageFiles(captureOutDir.path));
         setCaptureMeta(captureResultMeta);

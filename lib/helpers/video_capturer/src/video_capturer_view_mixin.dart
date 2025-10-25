@@ -288,6 +288,7 @@ mixin VideoCapturerViewMixin<T extends StatefulWidget> on State<T> {
     setState(() {});
   }
 
+  /// Debug 專用 (For 乾燥花)
   void addRulesAndStopPointsForDebug() {
     videoCapturer.addRulesAndStopPointsForDebug();
     setState(() {});
