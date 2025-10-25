@@ -239,7 +239,6 @@ class _PanoramaCutterPageState extends State<PanoramaCutterPage> {
     }
 
     final outDir = await getDownloadsDirectory() ?? await getApplicationDocumentsDirectory();
-    final ts = DateTime.now().millisecondsSinceEpoch;
 
     int index = 0;
     for (final seg in kept) {

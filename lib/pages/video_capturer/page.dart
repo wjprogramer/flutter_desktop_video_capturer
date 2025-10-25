@@ -1,6 +1,5 @@
-import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
-import 'package:flutter_desktop_video_capturer/helpers/video_capturer/src/models.dart';
+import 'package:flutter_desktop_video_capturer/env/env.dart';
 import 'package:flutter_desktop_video_capturer/helpers/video_capturer/src/video_capturer_view_mixin.dart';
 import 'package:flutter_desktop_video_capturer/widgets/video_capturer/capturer_area.dart';
 import 'package:flutter_desktop_video_capturer/widgets/video_capturer/pick_video_area.dart';
@@ -22,8 +21,8 @@ class _CapturerPageState extends State<CapturerPage> with VideoCapturerViewMixin
     initVideoCapturer();
 
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (kDebugMode) {
-        pickVideoForCapturer(debugSetFilePath: true);
+      if (debugUseDryFlower) {
+        pickVideoForCapturer(videoFilePath: debugDryFlowerVideoFilePath);
       }
     });
   }

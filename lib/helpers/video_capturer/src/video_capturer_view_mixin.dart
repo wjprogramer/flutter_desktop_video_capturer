@@ -15,7 +15,7 @@ import 'package:video_player/video_player.dart';
 
 /// 使用前需要初始化 (呼叫 [initVideoCapturer])
 mixin VideoCapturerViewMixin<T extends StatefulWidget> on State<T> {
-  final String taskId = MyUuid.generate();
+  late final String taskId;
 
   late final VideoCapturer videoCapturer;
 
@@ -29,15 +29,18 @@ mixin VideoCapturerViewMixin<T extends StatefulWidget> on State<T> {
 
   Rect? get _rectVideoPx => videoCapturer.rectVideoPx;
 
-  void initVideoCapturer() {
+  void initVideoCapturer({
+    String? taskId,
+  }) {
+    this.taskId = taskId ?? MyUuid.generate();
     videoCapturer = VideoCapturer();
   }
 
-  Future<void> pickVideoForCapturer({bool debugSetFilePath = false}) async {
+  Future<void> pickVideoForCapturer({String? videoFilePath}) async {
     final String filePath;
 
-    if (debugSetFilePath) {
-      filePath = 'C:\\Users\\weeih\\Videos\\JoySound\\ドライフラワー.mkv';
+    if (videoFilePath != null) {
+      filePath = videoFilePath;
     } else {
       final result = await FilePicker.platform.pickFiles(type: FileType.video);
       if (result == null || result.files.single.path == null) {

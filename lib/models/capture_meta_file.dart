@@ -1,3 +1,5 @@
+import 'dart:convert';
+import 'dart:io';
 import 'dart:ui';
 
 import 'package:flutter/material.dart';
@@ -54,6 +56,12 @@ class CaptureMeta {
       stopPoints: (json['stops_ms'] as List).map((e) => Duration(milliseconds: e)).toList(),
       segments: (json['segments'] as List).map((s) => CapturedSegment.fromJson(s)).toList(),
     );
+  }
+
+  static Future<CaptureMeta> loadFromFile(String filePath) async {
+    final file = File(filePath);
+    final content = await file.readAsString();
+    return CaptureMeta.fromJson(json.decode(content));
   }
 
   Map<String, dynamic> toJson() {

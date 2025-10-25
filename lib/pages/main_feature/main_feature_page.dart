@@ -1,5 +1,5 @@
-import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter_desktop_video_capturer/env/env.dart';
 import 'package:flutter_desktop_video_capturer/external/flutter_singer_tools/tuning_fork/tuning_fork_controller/tuning_fork_controller.dart';
 import 'package:flutter_desktop_video_capturer/helpers/combine_with_lyrics/src/combine_with_lyrics_view_mixin.dart';
 import 'package:flutter_desktop_video_capturer/helpers/detector_images_pitches/src/detect_pitches_exporter.dart';
@@ -8,6 +8,7 @@ import 'package:flutter_desktop_video_capturer/helpers/detector_images_pitches/s
 import 'package:flutter_desktop_video_capturer/helpers/traceable_history.dart';
 import 'package:flutter_desktop_video_capturer/helpers/tuning_fork_player.dart';
 import 'package:flutter_desktop_video_capturer/helpers/video_capturer/src/video_capturer_view_mixin.dart';
+import 'package:flutter_desktop_video_capturer/models/capture_meta_file.dart';
 import 'package:flutter_desktop_video_capturer/widgets/common/area.dart';
 import 'package:flutter_desktop_video_capturer/widgets/detector_images_pitches/detector_images_pitches_area.dart';
 import 'package:flutter_desktop_video_capturer/widgets/video_capturer/capturer_area.dart';
@@ -40,6 +41,7 @@ enum _PitchesEditorMode {
   }
 }
 
+// TODO: 強制位移 Detected Image 的起訖時間
 /// 主要功能:
 ///
 /// 1. 輸入影片
@@ -52,6 +54,7 @@ enum _PitchesEditorMode {
 /// ## 注意
 ///
 /// - 此 Page 不會用到 [CombineWithLyricsViewMixin] 的修改歌詞功能，僅用來顯示歌詞與音高的結合預覽
+/// - debug 狀態下會受 [debugUseDryFlower] 影響，會自動載入指定影片，並且自動略過擷取步驟
 class MainFeaturePage extends StatefulWidget {
   const MainFeaturePage({super.key});
 
@@ -79,14 +82,32 @@ class _MainFeaturePageState extends State<MainFeaturePage>
     _tuningController = TuningForkController(windowsWebController: _webController);
     _tuningForkPlayer = TuningForkPlayer(_tuningController);
 
-    initVideoCapturer();
+    initVideoCapturer(taskId: debugUseDryFlower ? 'debug_task_don_t_delete' : null);
     initCombineWithLyricsData(shouldLoadPitchData: false);
     _initWebView();
 
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (kDebugMode) {
-        pickVideoForCapturer(debugSetFilePath: true);
+    WidgetsBinding.instance.addPostFrameCallback((_) async {
+      if (!debugUseDryFlower) {
+        return;
       }
+
+      await pickVideoForCapturer(videoFilePath: debugDryFlowerVideoFilePath);
+      debugUpdateRectVideoPx();
+
+      final metaFile = await getCapturerMetaFileIfExists();
+      if (metaFile == null) {
+        return;
+      }
+
+      final captureResultMeta = await CaptureMeta.loadFromFile(metaFile.path);
+
+      final captureOutDir = await getCapturedImagesOutputDirectoryIfExists();
+      if (captureOutDir == null) return;
+
+      setState(() {
+        setCapturedImageFiles(getCapturedImageFiles(captureOutDir.path));
+        setCaptureMeta(captureResultMeta);
+      });
     });
   }
 
@@ -151,7 +172,6 @@ class _MainFeaturePageState extends State<MainFeaturePage>
     setPitchDataList(pitchDataList);
   }
 
-  // TODO:
   Future<void> _shiftPitchesFrom(Duration start, Duration delta) async {
     // 先記住目前選取的 pitch（若它會被平移，記下平移後的時間）
     final sel = selectedPitch;
@@ -184,10 +204,6 @@ class _MainFeaturePageState extends State<MainFeaturePage>
         setSelectedPitch(null);
       }
     }
-  }
-
-  Future<void> _playPreviewMusic() async {
-    final sw = Stopwatch()..start();
   }
 
   Widget _buildBody(BuildContext context) {
@@ -526,8 +542,6 @@ class _MainFeaturePageState extends State<MainFeaturePage>
 
   @override
   Widget build(BuildContext context) {
-    final screenSize = MediaQuery.of(context).size;
-
     return Scaffold(
       appBar: AppBar(title: const Text('主要功能'), actions: []),
       body: _buildBody(context),

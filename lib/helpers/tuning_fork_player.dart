@@ -72,18 +72,18 @@ class TuningForkPlayer {
     if (lastOnBefore != null) {
       tail.insert(
         0,
-        _Event(time: Duration.zero, type: _EventType.on, pitchIndex: lastOnBefore!.pitchIndex),
+        _Event(time: Duration.zero, type: _EventType.on, pitchIndex: lastOnBefore.pitchIndex),
       );
       // 如果對應 off 在 startAt 之後，時間也要平移
       if (firstOffAfter != null) {
-        final offTime = firstOffAfter!.time - startAt;
+        final offTime = firstOffAfter.time - startAt;
         // 若 tail 內已經有相同音的 off（通常會有），就不用特別加
         final hasOff = tail.any((e) =>
         e.type == _EventType.off &&
             e.time == offTime &&
             e.pitchIndex == firstOffAfter!.pitchIndex);
         if (!hasOff) {
-          tail.add(_Event(time: offTime, type: _EventType.off, pitchIndex: firstOffAfter!.pitchIndex));
+          tail.add(_Event(time: offTime, type: _EventType.off, pitchIndex: firstOffAfter.pitchIndex));
         }
         tail.sort((a, b) {
           final t = a.time.compareTo(b.time);

@@ -53,9 +53,8 @@ class _DetectorImagesPitchesPageState extends State<DetectorImagesPitchesPage> w
   }
 
   Future<CaptureMeta> _getMeta(String inputDir) async {
-    final file = File(p.join(inputDir, 'meta.json'));
-    final content = await file.readAsString();
-    return CaptureMeta.fromJson(json.decode(content));
+    final file = p.join(inputDir, 'meta.json');
+    return CaptureMeta.loadFromFile(file);
   }
 
   Future<void> _pickSaveJson() async {

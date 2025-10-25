@@ -107,7 +107,9 @@ mixin DetectorImagesPitchesViewMixin<T extends StatefulWidget> on State<T> {
     });
   }
 
-  Future<void> tryRunDetectImagesPitches({required String? inputDir}) async {
+  Future<void> tryRunDetectImagesPitches({
+    required String? inputDir,
+  }) async {
     if (inputDir == null || inputDir.isEmpty) {
       showToast('請先選擇輸入資料夾');
       return;
