@@ -1,5 +1,7 @@
 # flutter_desktop_video_capturer
 
+> ⚠️ 已轉移到 gitlab
+
 ## Scripts
 
 fix
